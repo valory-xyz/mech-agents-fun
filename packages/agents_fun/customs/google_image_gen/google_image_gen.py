@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------------------
 #
-#   Copyright 2024 Valory AG
+#   Copyright 2025 Valory AG
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -25,12 +25,13 @@ from io import BytesIO
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import anthropic
-from google import genai
-from google.genai import types
 import openai
-from aea_cli_ipfs.ipfs_utils import IPFSTool
-from google.api_core import exceptions as google_exceptions
 from PIL import Image
+from aea_cli_ipfs.ipfs_utils import IPFSTool
+from google import genai
+from google.api_core import exceptions as google_exceptions
+from google.genai import types
+
 
 # Define MechResponse type alias matching the other tools
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
@@ -39,6 +40,7 @@ MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 ALLOWED_TOOLS = [
     "google_image_gen",
 ]
+
 
 def with_key_rotation(func: Callable):
     """Decorator for handling API key rotation and retries."""
@@ -209,7 +211,7 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     api_key = api_keys.get("gemini_api_key", None)
     tool = kwargs.get("tool")
     counter_callback = kwargs.get("counter_callback", None)
-    model_name = "imagen-3.0-generate-002"
+    model_name = kwargs.get("model", "imagen-4.0-generate-001")
 
     validation_error = _validate_inputs(tool, api_key, prompt, counter_callback)
     if validation_error:
