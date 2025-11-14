@@ -45,9 +45,8 @@ MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
 
 ALLOWED_TOOLS = [
-    "short-maker",
+    "short_maker",
 ]
-TOOL_TO_ENGINE = {tool: "gpt-3.5-turbo" for tool in ALLOWED_TOOLS}
 
 REPLICATE_MUSIC_GEN = (
     "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
@@ -425,6 +424,14 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     user_input = kwargs["prompt"]
     openai_key = kwargs["api_keys"]["openai"]
     counter_callback = kwargs.get("counter_callback", None)
+    tool = kwargs.get("tool")
+    if tool not in ALLOWED_TOOLS:
+        return (
+            f"Tool {tool} is not supported by this agent.",
+            user_input,
+            None,
+            counter_callback,
+        )
 
     # Initialize OpenAI client with the provided key
     global client
