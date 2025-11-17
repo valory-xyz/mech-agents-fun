@@ -11,6 +11,8 @@ fingerprint:
 fingerprint_ignore_patterns: []
 entry_point: google_image_gen.py
 callable: run
+params:
+  default_model: imagen-4.0-generate-001
 dependencies:
   google-genai:
     version: ==1.17.0
