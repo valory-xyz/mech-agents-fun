@@ -7,7 +7,7 @@ license: Apache-2.0
 aea_version: '>=1.0.0, <2.0.0'
 fingerprint:
   __init__.py: bafybeidbtdhx4xszfatvfnpmmf3x3jzqq6raa6hl62dj6qmxlhouml4yha
-  short_maker.py: bafybeihxj7kr3iur7tqkbzedhqabhhbxrb2qtgf4p6rqwu6l66rcfbqzay
+  short_maker.py: bafybeieqp2uli6akl3axrpahhfi3lfsmhl45ewommeqqe6tqeoc6a6k63m
 fingerprint_ignore_patterns: []
 entry_point: short_maker.py
 callable: run

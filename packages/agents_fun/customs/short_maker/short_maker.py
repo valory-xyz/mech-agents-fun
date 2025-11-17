@@ -18,36 +18,42 @@
 # ------------------------------------------------------------------------------
 """This module contains the implementation of the short_maker tool."""
 
+import functools
 import json
 import logging
 import math
 import os
-from typing import Callable, Dict, Any, Tuple, Optional, List
-import functools
+import shutil
+import tempfile
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import openai
 import anthropic
-from googleapiclient.errors import HttpError as GoogleApiClientHttpError
-
-from moviepy.audio.fx.audio_fadeout import audio_fadeout
-from openai import OpenAI
-
+import openai
 import requests
 from aea_cli_ipfs.ipfs_utils import IPFSTool
-from moviepy.audio.AudioClip import concatenate_audioclips, AudioClip
-from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
-from moviepy.video.VideoClip import ColorClip, ImageClip
+from googleapiclient.errors import HttpError as GoogleApiClientHttpError
+from moviepy.audio.AudioClip import AudioClip, concatenate_audioclips
+from moviepy.audio.fx.audio_fadeout import audio_fadeout
+from moviepy.editor import AudioFileClip, CompositeAudioClip, VideoFileClip
+from moviepy.video.VideoClip import ColorClip
 from moviepy.video.compositing.concatenate import concatenate_videoclips
-from replicate import Client
+from openai import OpenAI
+from replicate import Client as ReplicateClient
 
 
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
 
 ALLOWED_TOOLS = [
-    "short-maker",
+    "short_maker",
 ]
-TOOL_TO_ENGINE = {tool: "gpt-3.5-turbo" for tool in ALLOWED_TOOLS}
+
+REPLICATE_MUSIC_GEN = (
+    "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
+)
+
+REPLICATE_MINIMAX_TTS = "minimax/speech-02-turbo"
+REPLICATE_STABILITY_STABLE_VIDEO_DIFFUSION = "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438"
 
 
 def with_key_rotation(func: Callable):
@@ -100,14 +106,14 @@ def with_key_rotation(func: Callable):
     return wrapper
 
 
-def download_file(url: str, local_filename: str):
+def download_file(url: str, local_filepath: str):
     """Utility function to download a file from a URL to a local path."""
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
-        with open(local_filename, "wb") as f:
+        with open(local_filepath, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
-    return local_filename
+    return local_filepath
 
 
 def get_audio_prompts(user_input: str, engine: str = "gpt-3.5-turbo") -> Dict[str, Any]:
@@ -117,7 +123,7 @@ def get_audio_prompts(user_input: str, engine: str = "gpt-3.5-turbo") -> Dict[st
         "content": f'Based on the USER INPUT: "{user_input}", please provide a short voiceover script, a prompt for generating a short soundtrack to go with the script, as well as a choice of voice for the voiceover. Format your response as a JSON object with two fields: "voiceover_script" and "soundtrack_prompt". Each field should contain the respective content as described below.\n\n'
         '- For the "voiceover_script": Use the user input to create a short script no longer than 10 seconds long (around 15-30 words), which has a mindblowing insight. The script should be in direct speech format suitable for text-to-speech AI without any stage directions. Do not just repeat the user input\n\n'
         '- For the "soundtrack_prompt": Devise a prompt that would guide an AI to generate a soundtrack that captures the mood implied by the user input.\n\n'
-        "- For the \"voice\": Choose what type of voice would suit the video. If the video deals with emotional or technological themes output 'angie'. If it deals with deep questions, output 'freeman'. If it deals with humourous themes, output 'tom'. Otherwise, output 'halle'. These are the names of the voices for the model. Only output the name, nothing else. \n\n"
+        "- For the \"voice\": Choose what type of voice would suit the video. If the video deals with emotional or technological themes output 'English_CalmWoman'. If it deals with deep questions, output 'English_ManWithDeepVoice'. If it deals with humourous themes, output 'English_Comedian'. Otherwise, output 'English_Graceful_Lady'. These are the names of the voices for the model. Only output the name, nothing else. \n\n"
         "Please structure your response in the following JSON format:\n\n"
         "{\n"
         '  "voiceover_script": "[Insert narrative script here]",\n'
@@ -142,7 +148,7 @@ def get_audio_prompts(user_input: str, engine: str = "gpt-3.5-turbo") -> Dict[st
         # Load the content as a JSON object to ensure proper JSON formatting
         json_object = json.loads(content)
 
-        print(json_object)
+        print(f"Audio Prompts: {json_object}")
         return json_object
 
     except Exception as e:
@@ -187,33 +193,40 @@ def get_shot_prompts(
         # Load the content as a JSON object to ensure proper JSON formatting
         json_object = json.loads(content)
 
-        print(json_object)
+        print(f"Shot Prompts: {json_object}")
         return json_object
     except Exception as e:
         print(f"An error occurred: {e}")
         return None
 
 
-def process_voiceover(client: Client, text: str, voice: str) -> str:
+def process_voiceover(client: ReplicateClient, text: str, voice: str) -> str:
     """Narrate the provided text"""
     url = client.run(
-        "afiaka87/tortoise-tts:e9658de4b325863c4fcdc12d94bb7c9b54cbfe351b7ca1b36860008172b91c71",
+        REPLICATE_MINIMAX_TTS,
         input={
-            "seed": 0,
             "text": text,
-            "preset": "fast",
-            "voice_a": voice,
-            "voice_b": "disabled",
-            "voice_c": "disabled",
+            "pitch": 0,
+            "speed": 1,
+            "volume": 1,
+            "bitrate": 128000,
+            "channel": "mono",
+            "emotion": "auto",
+            "voice_id": voice,
+            "sample_rate": 32000,
+            "audio_format": "mp3",
+            "language_boost": "English",
+            "subtitle_enable": False,
+            "english_normalization": False,
         },
     )
     return url
 
 
-def process_soundtrack(client: Client, prompt: str, duration: int = 10) -> str:
+def process_soundtrack(client: ReplicateClient, prompt: str, duration: int = 10) -> str:
     """Get a soundtrack for the provided prompt."""
     url = client.run(
-        "meta/musicgen:7a76a8258b23fae65c5a22debb8841d1d7e816b75c2f24218cd2bd8573787906",
+        REPLICATE_MUSIC_GEN,
         input={
             "seed": 3442726813,
             "top_k": 250,
@@ -234,7 +247,10 @@ def process_soundtrack(client: Client, prompt: str, duration: int = 10) -> str:
 
 
 def generate_images_with_dalle(
-    shot_prompts: Dict, api_key: str, engine: str = "dall-e-3"
+    shot_prompts: Dict,
+    api_key: str,
+    engine: str = "dall-e-3",
+    number_of_images: int = 1,
 ):
     """
     uses the shot prompts to generate images from dalle. These images will be used to generate videos with stability ai
@@ -246,7 +262,7 @@ def generate_images_with_dalle(
                 model=engine,
                 prompt=prompt,
                 size="1024x1024",
-                n=1,
+                n=number_of_images,
             )
             response = requests.post(
                 "https://api.openai.com/v1/images/generations",
@@ -258,6 +274,7 @@ def generate_images_with_dalle(
                 },
                 json=json_params,
             )
+            response.raise_for_status()
             body = response.json()
             if body["data"] and len(body["data"]) > 0:
                 image_url = body["data"][0]["url"]
@@ -265,7 +282,7 @@ def generate_images_with_dalle(
             else:
                 generated_images[shot_number] = "No image data in response"
 
-            print(generated_images)
+            print(f"Generated image for {shot_number}: {generated_images[shot_number]}")
 
         except Exception as e:
             print(f"Error generating image for {shot_number}: {e}")
@@ -274,7 +291,7 @@ def generate_images_with_dalle(
     return generated_images
 
 
-def process_first_shots(client: Client, shot_url: str):
+def process_first_shots(client: ReplicateClient, shot_url: str) -> str:
     """
     Processes the first video shots using the Replicate API based on the given video prompt.
     """
@@ -284,7 +301,7 @@ def process_first_shots(client: Client, shot_url: str):
 
     try:
         video_url = client.run(
-            "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438",
+            REPLICATE_STABILITY_STABLE_VIDEO_DIFFUSION,
             input={
                 "cond_aug": 0.02,
                 "decoding_t": 14,
@@ -295,41 +312,11 @@ def process_first_shots(client: Client, shot_url: str):
                 "frames_per_second": 10,
             },
         )
+        print(f"video_url: {video_url}")
         return video_url
     except Exception as e:
         print(f"Error processing video shot: {e}")
         return None
-
-
-def process_last_shot(client: Client, shot_url: str, voiceover_length: int):
-    """
-    Processes the first video shots using the Replicate API based on the given video prompt.
-    """
-    remainder = voiceover_length % 2.5
-    video_url = client.run(
-        "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438",
-        input={
-            "cond_aug": 0.02,
-            "decoding_t": 14,
-            "input_image": shot_url,
-            "video_length": "14_frames_with_svd",
-            "sizing_strategy": "maintain_aspect_ratio",
-            "motion_bucket_id": 127,
-            "frames_per_second": math.ceil(14 / remainder),
-        },
-    )
-    return video_url
-
-
-def get_video_url(
-    client: Client, prompt: str, num_frames: int = 100, fps: int = 10
-) -> str:
-    """Get a video for the provided prompt."""
-    url = client.run(
-        "wcarle/text2video-zero-openjourney:2bf28cacd1f02765bd557294ec53f743b42be123675773c810bb3e0f8e3ce6f6",
-        input={"prompt": prompt, "video_length": num_frames, "fps": fps},
-    )
-    return url
 
 
 def get_audio_duration(audio_file_path: str):
@@ -352,14 +339,19 @@ def get_audio_duration(audio_file_path: str):
     return duration_seconds
 
 
+def make_silence(t: float) -> List[int]:
+    """Generate silence"""
+    return [0]
+
+
 def compose_final_video(
     video_shots: List,
     voiceover_path: str,
     soundtrack_path: str,
-    file_prefix: str,
     voiceover_volume: float = 1.0,
     soundtrack_volume: float = 0.2,
     fadeout_duration: float = 1.0,
+    save_dir: str = ".",
 ) -> str:
     """Compose the final video."""
     clips = [VideoFileClip(shot) for shot in video_shots]
@@ -388,9 +380,6 @@ def compose_final_video(
         final_video_clip = concatenate_videoclips([final_video_clip, black_clip])
         print(f"Extended Video Duration: {final_video_clip.duration}")
 
-    # Function to create silence
-    make_silence = lambda t: [0]
-
     # Extend audio clips with silence if needed
     if voiceover_clip.duration < longest_duration:
         silence_duration = longest_duration - voiceover_clip.duration
@@ -414,10 +403,19 @@ def compose_final_video(
 
     final_video = final_video_clip.set_audio(final_audio)
 
-    filename = f"{file_prefix}.mp4"
-    final_video.write_videofile(filename, codec="libx264", audio_codec="aac", fps=24)
+    final_video_path = os.path.join(save_dir, "final.mp4")
+    final_video.write_videofile(
+        final_video_path, codec="libx264", audio_codec="aac", fps=24
+    )
 
-    return filename
+    return final_video_path
+
+
+def cleanup_tempdir(tmpdir: str):
+    """Remove the temporary directory and its contents."""
+    if os.path.exists(tmpdir):
+        shutil.rmtree(tmpdir)
+        print(f"Cleaned up temporary directory: {tmpdir}")
 
 
 @with_key_rotation
@@ -426,39 +424,54 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     user_input = kwargs["prompt"]
     openai_key = kwargs["api_keys"]["openai"]
     counter_callback = kwargs.get("counter_callback", None)
+    tool = kwargs.get("tool")
+    if tool not in ALLOWED_TOOLS:
+        return (
+            f"Tool {tool} is not supported by this agent.",
+            user_input,
+            None,
+            counter_callback,
+        )
 
     # Initialize OpenAI client with the provided key
     global client
     client = OpenAI(api_key=openai_key)
 
     replicate_key = kwargs["api_keys"]["replicate"]
-    client_replicate = Client(replicate_key)
+    client_replicate = ReplicateClient(replicate_key)
 
-    file_prefix = user_input[:5]  # Extract first 5 characters
-
+    tmpdir = tempfile.mkdtemp(prefix="short_maker_")
     # Step 2: Get audio prompts
+    print(f"Getting audio prompts for input: {user_input}")
     audio_prompts = get_audio_prompts(user_input)
 
     # Step 3: Process voiceover
+    print("Processing voiceover...")
     voiceover_script = audio_prompts["voiceover_script"]
     voice_choice = audio_prompts["voice"]
     voiceover = process_voiceover(client_replicate, voiceover_script, voice_choice)
 
     # Download voiceover and get duration
-    voiceover_filename = f"{file_prefix}_voiceover.mp3"
-    voiceover_path = download_file(voiceover, voiceover_filename)
+    print("Downloading voiceover...")
+    voiceover_path = os.path.join(tmpdir, "voiceover.mp3")
+    voiceover_path = download_file(voiceover, voiceover_path)
     voiceover_length = get_audio_duration(voiceover_path)
 
     # Step 5: Get shot prompts
+    print("Getting shot prompts...")
     shot_prompts = get_shot_prompts(user_input, voiceover_length)
 
     # Step 6: Generate images with DALL-E
-    images = generate_images_with_dalle(shot_prompts, openai_key)
-    image = list(images.values())[0]
-    first_shot_path = download_file(image, "first_shot")
+    print("Generating images with DALL-E...")
+    image_links = generate_images_with_dalle(shot_prompts, openai_key)
+    image = list(image_links.values())[0]
+    first_shot_path = os.path.join(tmpdir, "first_shot")
+    first_shot_path = download_file(image, first_shot_path)
 
     # Steps 7 & 8: Process video shots
-    video_urls = [process_first_shots(client_replicate, url) for url in images.values()]
+    video_urls = [
+        process_first_shots(client_replicate, url) for url in image_links.values()
+    ]
 
     # Step 9: Process soundtrack
     soundtrack_prompt = audio_prompts["soundtrack_prompt"]
@@ -467,23 +480,31 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     )
 
     # Download all video shots and soundtrack
+    print("Downloading video shots and soundtrack...")
     video_files = [
-        download_file(url, f"{file_prefix}_shot_{i}.mp4")
+        download_file(url, os.path.join(tmpdir, f"shot_{i}.mp4"))
         for i, url in enumerate(video_urls)
     ]
-    soundtrack_filename = f"{file_prefix}_soundtrack.mp3"
-    soundtrack_path = download_file(soundtrack, soundtrack_filename)
+
+    soundtrack_path = os.path.join(tmpdir, "soundtrack.mp3")
+    soundtrack_path = download_file(soundtrack, soundtrack_path)
 
     # Step 10: Compose final video
-    final_video = compose_final_video(
-        video_files, voiceover_path, soundtrack_path, file_prefix
+    print(
+        f"Composing final video with parameters: {video_files=}, {voiceover_path=}, {soundtrack_path=}"
     )
+    final_video_path = compose_final_video(
+        video_files, voiceover_path, soundtrack_path, save_dir=tmpdir
+    )
+    print(f"Final video composed at: {final_video_path}")
 
     ipfs_tool = IPFSTool()
-    _, video_hash_, _ = ipfs_tool.add(final_video, wrap_with_directory=False)
+    _, video_hash_, _ = ipfs_tool.add(final_video_path, wrap_with_directory=False)
     image_hash_ = ipfs_tool.client.add(
         first_shot_path, cid_version=1, wrap_with_directory=False
     )["Hash"]
+
+    cleanup_tempdir(tmpdir)
 
     print(f"Stored the output on: {video_hash_}")
 
