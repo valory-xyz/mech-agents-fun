@@ -5,8 +5,8 @@
         "custom/agents_fun/google_image_gen/0.1.0": "bafybeigcm7hu3d2rw3hggrcktawdyyjeetiai22z7or4ovjyap2c7nfoby",
         "custom/agents_fun/recraft_image_gen/0.1.0": "bafybeibjqrrsetjwz7uncq4xdgmqnfobngkhlwpuzvobbep5bxlohuojli",
         "custom/agents_fun/google_video_gen/0.1.0": "bafybeib5hk5lhe33v3immup2to53mm3oovwjif56xrpdjxeu66n4efivny",
-        "agent/valory/mech/0.1.0": "bafybeihgycsnowzwswczwehwm654ohabesxq7l5l3gvbkqur6qkav5n32m",
-        "service/valory/mech/0.1.0": "bafybeif5w3ywu4spwdj5qrifjatmpqlvi3bygcxn6rhleyeejyczf4jlhm"
+        "agent/valory/mech/0.1.0": "bafybeia2ijra5yjohb4avsjkncj3iefro7qfj2tasjw6xjddl7xdusazti",
+        "service/valory/mech/0.1.0": "bafybeibcch75ojcc4n72p77bghpirgwgheiirtqjmgeuwh7scqa3oeqczi"
     },
     "third_party": {
         "protocol/valory/acn_data_share/0.1.0": "bafybeih5ydonnvrwvy2ygfqgfabkr47s4yw3uqxztmwyfprulwfsoe7ipq",
@@ -38,9 +38,9 @@
         "connection/valory/p2p_libp2p_client/0.1.0": "bafybeic6ayusdwy4dks75njwk32ac7ur7salgllwf4fdc34ue5z2k5iz4q",
         "connection/valory/http_server/0.22.0": "bafybeic3jpkum7g6qo6x6vdrmvvhj7vqw7ec2op72uc3yfhmnlp5hn3joy",
         "skill/valory/contract_subscription/0.1.0": "bafybeiefuemlp75obgpxrp6iuleb3hn6vcviwh5oetk5djbuprf4xsmgjy",
-        "skill/valory/mech_abci/0.1.0": "bafybeiarwwttlbedq5fdmyyouccajr4il3mh6dhagv6ofaomwh6rn2wdku",
-        "skill/valory/task_submission_abci/0.1.0": "bafybeicfr6m7m4bxpgv2kib4pd52nmxrqf2jhtros37aykbbgzl3uksudy",
-        "skill/valory/task_execution/0.1.0": "bafybeieago5bcwszd4doony2i2jgd7aktdr5phv45boilmkj4gvkisghre",
+        "skill/valory/mech_abci/0.1.0": "bafybeiambu47ckmx7gfgdsrcbihydpnaoz5vfjw4baddtooipg7rfygnom",
+        "skill/valory/task_submission_abci/0.1.0": "bafybeiadrb4ecmupgdpepkoagxxzmi6yl3aswhfq5csulpwpgbe7t44siu",
+        "skill/valory/task_execution/0.1.0": "bafybeiduyp5pe56nkfmqedrdybipf4zk3lfr6vihpmgodhef4heajmaolu",
         "skill/valory/websocket_client/0.1.0": "bafybeif7rrvsu6z4evqkhblxj3u6wwv2eqou576hgkyoehxuj7cntw7o2m",
         "skill/valory/delivery_rate_abci/0.1.0": "bafybeibhotak73bsqz4ru6gnymiscalcwulocvtkkwuswr74lnllrox44u",
         "skill/valory/transaction_settlement_abci/0.1.0": "bafybeigjp3sj5aqemttht63vsewozsfxblx66ekez6vm5lnycd4lgwghda",
