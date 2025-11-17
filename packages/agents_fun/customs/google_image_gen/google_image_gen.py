@@ -211,7 +211,7 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     api_key = api_keys.get("gemini_api_key", None)
     tool = kwargs.get("tool")
     counter_callback = kwargs.get("counter_callback", None)
-    model_name = kwargs.get("model", "imagen-4.0-generate-001")
+    model_name = kwargs.get("model")
 
     validation_error = _validate_inputs(tool, api_key, prompt, counter_callback)
     if validation_error:
