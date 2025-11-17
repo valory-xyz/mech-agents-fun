@@ -41,6 +41,8 @@ ALLOWED_TOOLS = [
     "google_image_gen",
 ]
 
+DEFAULT_MODEL_NAME = "imagen-4.0-generate-001"
+
 
 def with_key_rotation(func: Callable):
     """Decorator for handling API key rotation and retries."""
@@ -211,7 +213,9 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     api_key = api_keys.get("gemini_api_key", None)
     tool = kwargs.get("tool")
     counter_callback = kwargs.get("counter_callback", None)
-    model_name = kwargs.get("model", "imagen-4.0-generate-001")
+    model_name = kwargs.get("model")
+    if model_name is None:
+        model_name = DEFAULT_MODEL_NAME
 
     validation_error = _validate_inputs(tool, api_key, prompt, counter_callback)
     if validation_error:
