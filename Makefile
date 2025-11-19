@@ -105,3 +105,20 @@ protolint_install:
 		tar -xvf protolint_0.27.0_Linux_x86_64.tar.gz && \
 		sudo mv protolint /usr/local/bin/protolint
 	sudo rm -rf protolint_install
+
+.PHONY: ci-linter-checks
+ci-linter-checks:
+	gitleaks detect --report-format json --report-path leak_report
+	tomte check-copyright --author valory --exclude-part abci --exclude-part http_client --exclude-part ipfs --exclude-part ledger --exclude-part p2p_libp2p_client --exclude-part gnosis_safe --exclude-part gnosis_safe_proxy_factory --exclude-part multisend --exclude-part service_registry --exclude-part contracts --exclude-part skills --exclude-part protocols --exclude-part abstract_abci --exclude-part abstract_round_abci --exclude-part registration_abci --exclude-part reset_pause_abci --exclude-part termination_abci --exclude-part transaction_settlement_abci --exclude-part websocket_client --exclude-part contract_subscription --exclude-part mech --exclude-part mech_interact_abci  --exclude-part http_server --exclude-part connections
+	tox -e liccheck
+	tox -e check-dependencies
+	tomte check-doc-links
+	tox -e check-doc-hashes
+	tomte check-security
+	tox -e check-packages
+	tox -e check-hash
+	tomte check-code
+	tomte check-spelling
+	tox -e check-abci-docstrings
+	tox -e check-abciapp-specs
+	tox -e check-handlers
