@@ -205,6 +205,13 @@ models:
         safe_contract_address: ${str:0x5e1D1eb61E1164D5a50b28C575dA73A29595dFf7}
         consensus_threshold: ${int:null}
       default_chain_id: ${str:base}
+  randomness_api:
+    args:
+      method: ${str:GET}
+      response_key: ${str:null}
+      response_type: ${str:dict}
+      retries: ${int:5}
+      url: ${str:https://drand.cloudflare.com/public/latest}
 ---
 public_id: valory/task_execution:0.1.0
 type: skill
