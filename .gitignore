@@ -26,6 +26,7 @@ backup_mech/
 .venv
 log
 .benchmark-cache
+.claude
 mech/
 mech_service/
 !/packages/valory/agents
