@@ -17,25 +17,26 @@
 #
 # ------------------------------------------------------------------------------
 """This module contains the implementation of the google_video_gen tool."""
+
 import functools
 import json
 import logging
-import os
 import math
-import requests
+import os
+import re
 import time
 import wave
-import re
-from typing import Any, Callable, Dict, Optional, Tuple, List
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import anthropic
+import requests
 from aea_cli_ipfs.ipfs_utils import IPFSTool
 from google import genai
 from google.api_core import exceptions as google_exceptions
 from google.genai import types
+from moviepy.audio.AudioClip import AudioClip, concatenate_audioclips
 from moviepy.audio.fx.audio_fadeout import audio_fadeout
-from moviepy.audio.AudioClip import concatenate_audioclips, AudioClip
-from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip, ColorClip
+from moviepy.editor import AudioFileClip, ColorClip, CompositeAudioClip, VideoFileClip
 from moviepy.video.compositing.concatenate import concatenate_videoclips
 
 # Define MechResponse type alias matching the other tools
@@ -61,11 +62,11 @@ ALLOWED_TOOLS = [
 ]
 
 
-def with_key_rotation(func: Callable):
+def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
     """Decorator for handling API key rotation and retries."""
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs) -> MechResponse:
+    def wrapper(*args: Any, **kwargs: Any) -> MechResponse:
         api_keys = kwargs["api_keys"]
         # Ensure api_keys object has the expected methods
         if (
@@ -107,7 +108,7 @@ def with_key_rotation(func: Callable):
                 google_exceptions.GoogleAPIError
             ) as e:  # Specific catch for other GoogleAPIErrors
                 # If not a 500 error, or no code attribute, re-raise immediately
-                if not hasattr(e, "code") or e.code != 500:
+                if not hasattr(e, "code") or e.code != 500:  # pylint: disable=no-member
                     raise e
                 service = "google_api_key"
                 # If no retries left for this service, raise.
@@ -118,7 +119,7 @@ def with_key_rotation(func: Callable):
                 retries_left[service] -= 1
                 api_keys.rotate(service)
                 return execute()
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 print(f"An unexpected error occurred: {e}")
                 error_response = str(e)
                 prompt_value = kwargs.get(
@@ -133,7 +134,7 @@ def with_key_rotation(func: Callable):
 
 
 def _validate_inputs(
-    tool: str, api_key: Optional[str], prompt: str, counter_callback: Any
+    tool: Optional[str], api_key: Optional[str], prompt: str, counter_callback: Any
 ) -> Optional[Tuple[str, str, None, Any]]:
     """Validate tool and API key."""
     if tool not in ALLOWED_TOOLS:
@@ -154,9 +155,9 @@ def _validate_inputs(
     return None
 
 
-def download_file(url: str, local_filename: str):
+def download_file(url: str, local_filename: str) -> str:
     """Utility function to download a file from a URL to a local path."""
-    with requests.get(url, stream=True) as r:
+    with requests.get(url, stream=True, timeout=60) as r:
         r.raise_for_status()
         with open(local_filename, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
@@ -164,7 +165,14 @@ def download_file(url: str, local_filename: str):
     return local_filename
 
 
-def wave_file(filename, pcm, channels=1, rate=24000, sample_width=2):
+def wave_file(
+    filename: str,
+    pcm: bytes,
+    channels: int = 1,
+    rate: int = 24000,
+    sample_width: int = 2,
+) -> None:
+    """Write PCM audio data to a WAV file."""
     with wave.open(filename, "wb") as wf:
         wf.setnchannels(channels)
         wf.setsampwidth(sample_width)
@@ -182,10 +190,12 @@ def _generate_text_with_gemini_flash(
     print("requesting google TTS with prompt: ", prompt)
 
     response = client.models.generate_content(
-        model=model_name, contents=[prompt], config=config
+        model=model_name, contents=prompt, config=config
     )
-    print(f"Raw response from _generate_text_with_gemini_flash: \n{{response.text}}")
-    return response.text
+    text = response.text
+    print("Raw response from _generate_text_with_gemini_flash: \n", text)
+    assert text is not None, "Response text is None"
+    return text
 
 
 def get_audio_prompts(user_input: str, google_client: genai.Client) -> Dict[str, Any]:
@@ -201,9 +211,9 @@ def get_audio_prompts(user_input: str, google_client: genai.Client) -> Dict[str,
             google_client,
             prompt=full_prompt,
         )
-        print(f"Raw content from _generate_text_with_gemini_flash: \n{{raw_content}}")
+        print("Raw content from _generate_text_with_gemini_flash: \n", raw_content)
         content = raw_content.strip()
-        print(f"Stripped content: \n{{content}}")
+        print("Stripped content: \n", content)
 
         # Parse the plain text content to extract voiceover script and voice
         voiceover_script_match = re.search(r"Voiceover: (.*)", content, re.IGNORECASE)
@@ -270,15 +280,7 @@ def get_audio_prompts(user_input: str, google_client: genai.Client) -> Dict[str,
 
 
 def get_audio_duration(audio_file_path: str) -> int:
-    """
-    Get the duration of an audio file in seconds, rounded up to the nearest second.
-
-    Args:
-    audio_file_path (str): The file path to the audio file.
-
-    Returns:
-    int: The duration of the audio file in seconds, rounded up.
-    """
+    """Get the duration of an audio file in seconds, rounded up."""
     if not os.path.exists(audio_file_path):
         raise FileNotFoundError(f"The audio file {audio_file_path} does not exist.")
 
@@ -289,7 +291,7 @@ def get_audio_duration(audio_file_path: str) -> int:
     return duration_seconds
 
 
-def compose_final_video(
+def compose_final_video(  # pylint: disable=too-many-positional-arguments,too-many-locals
     video_path: str,
     voiceover_path: str,
     file_prefix: str,
@@ -301,9 +303,13 @@ def compose_final_video(
     video_clip = VideoFileClip(video_path)
 
     # Audio Clips
-    voiceover_clip = AudioFileClip(voiceover_path).volumex(voiceover_volume)
-    # We don't have a soundtrack prompt, so we will create a silent audio clip for soundtrack
-    make_silence = lambda t: [0]
+    voiceover_clip = AudioFileClip(voiceover_path)
+    voiceover_clip = voiceover_clip.volumex(voiceover_volume)
+
+    def make_silence(_t: float) -> list:  # noqa: E731
+        """Return silent audio frame."""
+        return [0]
+
     soundtrack_clip = (
         AudioClip(make_frame=make_silence, duration=video_clip.duration)
         .set_fps(44100)
@@ -375,13 +381,13 @@ def _generate_video_from_google_api(
     while not operation.done:
         time.sleep(20)
         print(
-            f"Waiting for video generation operation to complete... will check again in 20 seconds"
+            "Waiting for video generation operation to complete... will check again in 20 seconds"
         )
         operation = client.operations.get(operation)
 
     result = operation.result
     print(f"Video generation operation result: {result}")
-    if not result.generated_videos:
+    if result is None or not result.generated_videos:
         return None, (
             "No video data found in the response (generated_videos is empty).",
             prompt,
@@ -390,6 +396,7 @@ def _generate_video_from_google_api(
         )
 
     video_file = result.generated_videos[0].video
+    assert video_file is not None, "Video file is None"
 
     # Download the video content
     print(f"Downloading video file from URI: {video_file.uri}")
@@ -442,11 +449,23 @@ def _generate_audio_with_gemini_tts(
             ),
         ),
     )
-    return response.candidates[0].content.parts[0].inline_data.data
+    candidates = response.candidates
+    assert candidates is not None, "Response candidates is None"
+    content = candidates[0].content
+    assert content is not None, "Candidate content is None"
+    parts = content.parts
+    assert parts is not None, "Content parts is None"
+    inline_data = parts[0].inline_data
+    assert inline_data is not None, "Inline data is None"
+    data = inline_data.data
+    assert data is not None, "Inline data bytes is None"
+    return data
 
 
 @with_key_rotation
-def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
+def run(  # pylint: disable=too-many-locals
+    **kwargs: Any,
+) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     """Runs the Google video generation task using genai.Client and adds audio."""
     prompt = kwargs["prompt"]
     api_keys = kwargs["api_keys"]
@@ -466,25 +485,7 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
 
     temp_files = []
     try:
-        # Step 1: Generate video from Google API
-        # video_data, error_response = _generate_video_from_google_api(
-        #     google_client, prompt, model_name, counter_callback
-        # )
-        # if error_response: # This is commented out for testing audio generation first
-        #     return error_response
-        # if video_data is None:
-        #     return (
-        #         "Failed to generate video data without specific error.",
-        #         prompt,
-        #         None,
-        #         counter_callback,
-        #     )
-
-        # # Save video temporarily and get its path
-        # _, _, _, _, temp_video_path = _save_video_and_upload_to_ipfs(
-        #     video_data, prompt, model_name, counter_callback
-        # )
-        # temp_files.append(temp_video_path)
+        # Step 1: Video generation (pending implementation)
 
         # Step 2: Get audio prompts from OpenAI
         try:
@@ -514,18 +515,8 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
             print(f"Error processing voiceover: {e}")
             raise
 
-        # Step 4: Merge video and audio
-        # This part is commented out as video generation is also commented out.
-        # final_video_path = compose_final_video(
-        #     temp_video_path,
-        #     voiceover_path,
-        #     file_prefix
-        # )
-        # temp_files.append(final_video_path)
-
-        # Step 5: Upload final video to IPFS (currently just audio for testing)
-        # For now, let's just return the audio path if video generation is skipped.
-        # If video generation is uncommented, this part will need to be updated.
+        # Step 4 & 5: Video merging and IPFS upload
+        # Video generation step is pending implementation.
         ipfs_tool = IPFSTool()
         _, audio_hash, _ = ipfs_tool.add(voiceover_path, wrap_with_directory=False)
 
@@ -535,7 +526,7 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     except google_exceptions.GoogleAPIError as e:
         print(f"Google API error: {e}")
         return f"Google API error: {e}", prompt, None, counter_callback
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"An unexpected error occurred: {e}")
         return f"An error occurred: {e}", prompt, None, counter_callback
     finally:

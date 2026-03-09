@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------------------
 #
-#   Copyright 2022-2025 Valory AG
+#   Copyright 2022-2026 Valory AG
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ def get_package_dependencies() -> Dict[str, Any]:
             package_path=package_manager.package_path_from_package_id(
                 package_id=package
             ),
-        ).dependencies
+        ).dependencies  # type: ignore[attr-defined]
         for key, value in _dependencies.items():
             if key not in dependencies:
                 dependencies[key] = value

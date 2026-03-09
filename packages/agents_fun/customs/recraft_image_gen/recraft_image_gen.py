@@ -21,12 +21,13 @@
 import functools
 import json
 import os
-from typing import Any, Callable, Dict, Optional, Tuple
 from io import BytesIO
+from typing import Any, Callable, Dict, Optional, Tuple
 
-from openai import OpenAI
-from aea_cli_ipfs.ipfs_utils import IPFSTool
+import requests
 from PIL import Image
+from aea_cli_ipfs.ipfs_utils import IPFSTool
+from openai import OpenAI
 
 # Define MechResponse type alias matching the other tools
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
@@ -37,7 +38,7 @@ ALLOWED_TOOLS = [
 ]
 
 
-def _validate_api_keys(api_keys) -> Optional[str]:
+def _validate_api_keys(api_keys: Any) -> Optional[str]:
     required_methods = ["max_retries", "rotate", "get"]
     if not all(hasattr(api_keys, method) for method in required_methods):
         return (
@@ -46,15 +47,15 @@ def _validate_api_keys(api_keys) -> Optional[str]:
     return None
 
 
-def _create_error_response(error_msg: str, **kwargs) -> MechResponse:
+def _create_error_response(error_msg: str, **kwargs: Any) -> MechResponse:
     prompt_val = kwargs.get("prompt", "N/A")
     callback_val = kwargs.get("counter_callback", None)
     return error_msg, prompt_val, None, callback_val, None
 
 
 def _handle_rate_limit_error(
-    e: Exception, service: str, retries_left: Dict[str, int], api_keys
-):
+    e: Exception, service: str, retries_left: Dict[str, int], api_keys: Any
+) -> None:
     if retries_left.get(service, 0) <= 0:
         print(f"No retries left for service: {service}")
         raise e
@@ -65,20 +66,22 @@ def _handle_rate_limit_error(
     api_keys.rotate(service)
 
 
-def with_key_rotation(func: Callable):
+def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
+    """Wrap function with API key rotation logic."""
+
     @functools.wraps(func)
-    def wrapper(*args, **kwargs) -> MechResponse:
+    def wrapper(*args: Any, **kwargs: Any) -> MechResponse:
         api_keys = kwargs["api_keys"]
         validation_error = _validate_api_keys(api_keys)
         if validation_error:
             return _create_error_response(validation_error, **kwargs)
-        retries_left: Dict[str, int] = api_keys.max_retries()
+        _ = api_keys.max_retries()
 
         def execute() -> MechResponse:
             try:
                 result = func(*args, **kwargs)
                 return result + (api_keys,)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 print(f"An unexpected error occurred: {e}")
                 error_response = str(e)
                 prompt_value = kwargs.get(
@@ -92,7 +95,7 @@ def with_key_rotation(func: Callable):
     return wrapper
 
 
-def _validate_inputs(tool: str, api_key: Optional[str]) -> Optional[str]:
+def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> Optional[str]:
     if tool not in ALLOWED_TOOLS:
         return f"Tool {tool} is not supported by this agent."
     if not api_key:
@@ -100,15 +103,16 @@ def _validate_inputs(tool: str, api_key: Optional[str]) -> Optional[str]:
     return None
 
 
-def _generate_content(prompt: str, style: str, api_key: str):
+def _generate_content(prompt: str, style: str, api_key: str) -> Any:
+    """Generate image content using the Recraft API."""
     client = OpenAI(
         base_url="https://external.api.recraft.ai/v1",
         api_key=api_key,
     )
-    return client.images.generate(prompt=prompt, style=style)
+    return client.images.generate(prompt=prompt, style=style)  # type: ignore[arg-type]
 
 
-def _extract_image_url_from_response(response) -> Optional[str]:
+def _extract_image_url_from_response(response: Any) -> Optional[str]:
     # Assuming response.data[0].url is the image URL
     if hasattr(response, "data") and response.data:
         return response.data[0].url
@@ -116,13 +120,12 @@ def _extract_image_url_from_response(response) -> Optional[str]:
 
 
 def _download_image(image_url: str) -> Optional[bytes]:
-    import requests
-
+    """Download an image from a URL."""
     try:
-        resp = requests.get(image_url)
+        resp = requests.get(image_url, timeout=30)
         resp.raise_for_status()
         return resp.content
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Failed to download image: {e}")
         return None
 
@@ -148,7 +151,8 @@ def _prepare_result(image_hash: str, prompt: str, style: str) -> str:
 
 
 @with_key_rotation
-def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
+def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
+    """Run the recraft image generation tool."""
     prompt = kwargs["prompt"]
     style = kwargs.get("style", "realistic_image")
     api_key = kwargs["api_keys"].get("recraft_api_key")
@@ -176,8 +180,9 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
         image_hash, upload_error = _process_image_and_upload(image_bytes)
         if upload_error:
             return upload_error, prompt, None, counter_callback
+        assert image_hash is not None
         result = _prepare_result(image_hash, prompt, style)
         return result, prompt, None, counter_callback
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"An unexpected error occurred: {e}")
         return f"An error occurred: {e}", prompt, None, counter_callback

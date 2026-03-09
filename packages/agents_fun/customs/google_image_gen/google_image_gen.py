@@ -32,7 +32,6 @@ from google import genai
 from google.api_core import exceptions as google_exceptions
 from google.genai import types
 
-
 # Define MechResponse type alias matching the other tools
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
@@ -42,11 +41,11 @@ ALLOWED_TOOLS = [
 ]
 
 
-def with_key_rotation(func: Callable):
+def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
     """Decorator for handling API key rotation and retries."""
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs) -> MechResponse:
+    def wrapper(*args: Any, **kwargs: Any) -> MechResponse:
         api_keys = kwargs["api_keys"]
         # Ensure api_keys object has the expected methods
         if (
@@ -98,7 +97,7 @@ def with_key_rotation(func: Callable):
                 google_exceptions.GoogleAPIError
             ) as e:  # Specific catch for other GoogleAPIErrors
                 # If not a 500 error, or no code attribute, re-raise immediately
-                if not hasattr(e, "code") or e.code != 500:
+                if not hasattr(e, "code") or e.code != 500:  # pylint: disable=no-member
                     raise e
                 service = "google_api_key"
                 # If no retries left for this service, raise.
@@ -109,7 +108,7 @@ def with_key_rotation(func: Callable):
                 retries_left[service] -= 1
                 api_keys.rotate(service)
                 return execute()
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 print(f"An unexpected error occurred: {e}")
                 error_response = str(e)
                 prompt_value = kwargs.get(
@@ -124,7 +123,7 @@ def with_key_rotation(func: Callable):
 
 
 def _validate_inputs(
-    tool: str, api_key: Optional[str], prompt: str, counter_callback: Any
+    tool: Optional[str], api_key: Optional[str], prompt: str, counter_callback: Any
 ) -> Optional[Tuple[str, str, None, Any]]:
     """Validate tool and API key."""
     if tool not in ALLOWED_TOOLS:
@@ -146,7 +145,7 @@ def _validate_inputs(
 
 
 def _generate_image_from_google_api(
-    client: genai.Client, prompt: str, model_name: str, counter_callback: Any
+    client: genai.Client, prompt: str, model_name: Any, counter_callback: Any
 ) -> Tuple[Optional[bytes], Optional[Tuple[str, str, None, Any]]]:
     """Generates image data using the Google API and handles initial response validation."""
     response = client.models.generate_images(
@@ -174,11 +173,11 @@ def _generate_image_from_google_api(
             None,
             counter_callback,
         )
-    return first_generated_image.image.image_bytes, None
+    return first_generated_image.image.image_bytes, None  # type: ignore[union-attr]
 
 
 def _save_image_and_upload_to_ipfs(
-    image_data: bytes, prompt: str, model_name: str, counter_callback: Any
+    image_data: bytes, prompt: str, model_name: Any, counter_callback: Any
 ) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     """Saves the image data to a temporary file, uploads to IPFS, and cleans up."""
     temp_image_path = f"temp_generated_image_{os.getpid()}.png"
@@ -204,7 +203,7 @@ def _save_image_and_upload_to_ipfs(
 
 
 @with_key_rotation
-def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
+def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     """Runs the Google image generation task using genai.Client."""
     prompt = kwargs["prompt"]
     api_keys = kwargs["api_keys"]
@@ -243,6 +242,6 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     except google_exceptions.GoogleAPIError as e:
         print(f"Google API error: {e}")
         return f"Google API error: {e}", prompt, None, counter_callback
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"An unexpected error occurred: {e}")
         return f"An error occurred: {e}", prompt, None, counter_callback
