@@ -1,12 +1,12 @@
 {
     "dev": {
-        "custom/agents_fun/short_maker/0.1.0": "bafybeif6yxmji5r3gr6meevxnplrwg2vnrg3wyj2xyff6cgb2ff3rlgfpq",
-        "custom/agents_fun/stability_ai_request/0.1.0": "bafybeidfyz4tqvx544gausycg6o5o2arbfbezpllvsf5taq6kgkt3gl7xy",
-        "custom/agents_fun/google_image_gen/0.1.0": "bafybeiepbtguu7n3uo2d52olfmt5lzz4cgmnlqxk245j4tgik33y7xpysq",
-        "custom/agents_fun/recraft_image_gen/0.1.0": "bafybeibjqrrsetjwz7uncq4xdgmqnfobngkhlwpuzvobbep5bxlohuojli",
-        "custom/agents_fun/google_video_gen/0.1.0": "bafybeib5hk5lhe33v3immup2to53mm3oovwjif56xrpdjxeu66n4efivny",
-        "agent/valory/mech_agents_fun/0.1.0": "bafybeicxlfbxc4g53exw4gir24hk6cljwn25wwqw6hoevu3pk3becukkgq",
-        "service/valory/mech/0.1.0": "bafybeiaprdtqathopc2g4xrvunv6ceprynanrj6xujsrcjoclfoi5mecxa"
+        "custom/agents_fun/short_maker/0.1.0": "bafybeidlycdfyhqrfbkjhzrpo2canoa2433zrdyx2ofs4m4fd7ope7ygty",
+        "custom/agents_fun/stability_ai_request/0.1.0": "bafybeia4t2pxzdppu2m7rzc6zfjtgimtmcb4ymi7kj4e34udgyvtubqmty",
+        "custom/agents_fun/google_image_gen/0.1.0": "bafybeiczx4tfsueoxix6bqx3vjvhpq3l4giawaqhoecrulxubonbcs5lde",
+        "custom/agents_fun/recraft_image_gen/0.1.0": "bafybeih2npp5cd4quyjrbvqtkmpru3lqxhno2u6qv6cy34bgdhtgtu6boq",
+        "custom/agents_fun/google_video_gen/0.1.0": "bafybeifdtka7kojwkdviefmu5onat3xmzhjtprikrxjeddxlby5xixoqri",
+        "agent/valory/mech_agents_fun/0.1.0": "bafybeihivueps46xkvu3aqf4imlm2xsa2qisgmnv3qxh2nell5jwbomyna",
+        "service/valory/mech/0.1.0": "bafybeigljbtnlnlidro2aroejhnkmu2oojounktxz777windajdiytjpny"
     },
     "third_party": {
         "protocol/valory/acn/1.1.0": "bafybeiea66z4k6cgcazxd6qzvnkllulyjzbnxufkoenge7qzh4qfogrvoa",

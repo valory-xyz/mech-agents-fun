@@ -68,6 +68,7 @@ prometheus_client = "==0.23.1"
 pyyaml = "<7.0.0,>=6.0.0"
 werkzeug = "*"
 attrs = "*"
+google-api-core = "*"
 
 [tool.poetry.group.dev.dependencies]
 setuptools = "^78.0.1"
