@@ -4,7 +4,7 @@ version: 0.1.0
 type: custom
 description: A tool to generate images from text using Google Generative AI.
 license: Apache-2.0
-aea_version: '>=1.0.0, <2.0.0'
+aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
   __init__.py: bafybeidnpzfuhbztaogflzlzwi7g7oyt2t5pcx6ayl5xuuixsq2nbt3vcu
   google_image_gen.py: bafybeicmkk3krx66twfpelfpzxaxopde5m4vgcjwplto6oz7fvmr3erxwa
@@ -17,9 +17,9 @@ dependencies:
   google-genai:
     version: ==1.17.0
   pillow:
-    version: ~=10.4.0
+    version: ==11.2.1
   open-aea-cli-ipfs:
-    version: ==1.65.0
+    version: ==2.1.0rc6
   anthropic:
     version: ==0.21.3
   openai:
