@@ -59,7 +59,7 @@ jobs:
     - name: Check dependencies
       run: tox -e check-dependencies
     - name: Check doc links
-      run: tomte check-doc-links
+      run: tomte check-doc-links --url-skips https://github.com/tendermint/tendermint
     - name: Check doc IPFS hashes
       run: tox -e check-doc-hashes
 
