@@ -5,8 +5,8 @@
         "custom/agents_fun/google_image_gen/0.1.0": "bafybeiflz4fih2ojlbs655uwgi7nyev5cadh2pj7joz55hgcq62xmedlfu",
         "custom/agents_fun/recraft_image_gen/0.1.0": "bafybeiahkbf63oeodjsziju47pcb5fkz7i66guqha4smrr3gtax7elw2de",
         "custom/agents_fun/google_video_gen/0.1.0": "bafybeidh5rmaxweib5ir5cplrpgawzqmom4s3erqalxcfexhtywrkslpbe",
-        "agent/valory/mech_agents_fun/0.1.0": "bafybeigmyfzlnkxpzxmkol4v2hgay7blnwmahll6xftdchrlrlokeltdfm",
-        "service/valory/mech/0.1.0": "bafybeihirizcak7r23cv5tp6dpmlzgkd4kljixre272u773visxt7weoua"
+        "agent/valory/mech_agents_fun/0.1.0": "bafybeidfyst37v2uoxglqucs4wkgmrlxjxr5lmjmibxk3p6rfc6tjs346y",
+        "service/valory/mech/0.1.0": "bafybeidvn7ymahdnosutla75myif5ewfsauawol5fivauiseqgvoqi5ueu"
     },
     "third_party": {
         "protocol/valory/acn/1.1.0": "bafybeiea66z4k6cgcazxd6qzvnkllulyjzbnxufkoenge7qzh4qfogrvoa",
@@ -23,12 +23,12 @@
         "contract/valory/service_registry/0.1.0": "bafybeia66yhd3iyvuzojalivuj7yzyh4vi4cxnfoz22saax5257kmjcr6e",
         "contract/valory/gnosis_safe/0.1.0": "bafybeiamcgebbdbm3kzcvpeio4pjobzduz2cdlxrs7ufe4ere2zuompgwe",
         "contract/valory/multisend/0.1.0": "bafybeiaf3hapi3prgpjeugwhq64k7lqelo6kibhol5rkajt7id3knomp5q",
-        "contract/valory/erc20/0.1.0": "bafybeifnavtn55w7t3j6de34nc7o3pxmoydoc5u6flocfaflqzurvpch2m",
         "contract/valory/mech_marketplace/0.1.0": "bafybeifehvfw6jii7l7ddcp4nmyqgjh6sqqjnalcacjv4ojs7z6qnkivfi",
         "contract/valory/olas_mech/0.1.0": "bafybeifebpsueu5hvsmd6qjtaxiyjfbuug3bggzj3obc6tjeju6inazhrq",
         "contract/valory/complementary_service_metadata/0.1.0": "bafybeibjk5gdgc54wx5bz4fl2666urmfj6mx3ocqxyumqpj7wq5fdg4diu",
         "contract/valory/hash_checkpoint/0.1.0": "bafybeihidmyihq36u77psqksococh2tynwjnvkblfzikt6ud62eihdxiyi",
         "contract/valory/balance_tracker/0.1.0": "bafybeiao53oacmcgykb3swd2dtjie7laro4yfhisqh5he25pc23txximkq",
+        "contract/valory/erc20/0.1.0": "bafybeifnavtn55w7t3j6de34nc7o3pxmoydoc5u6flocfaflqzurvpch2m",
         "connection/valory/http_server/0.22.0": "bafybeid4oqsfkqo36lryoecymjnq4whme3tgupqfq6m4l7lbr5r4yxtswu",
         "connection/valory/p2p_libp2p_client/0.1.0": "bafybeielj3jso3wvrarp5n5rq7llpw4vgxybqiyensgjalb5ubfiawwhhu",
         "connection/valory/http_client/0.23.0": "bafybeihel6sg2yayxu7lqygaswdgciaxpqrgsbl5rwx74c6znu5qz2edd4",
