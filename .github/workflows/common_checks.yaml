@@ -22,13 +22,13 @@ jobs:
     - name: Install and configure Poetry
       uses: snok/install-poetry@v1
       with:
-        version: "1.4.0"
+        version: "2.1.2"
         virtualenvs-create: true
         virtualenvs-in-project: false
         virtualenvs-path: ~/my-custom-path
         installer-parallel: true
     - name: Check if dependencies can be locked
-      run: poetry lock --check
+      run: poetry check --lock
     - name: Poetry install requirements and check they can be locked
       run: poetry install --all-extras --no-interaction -vvv
 
