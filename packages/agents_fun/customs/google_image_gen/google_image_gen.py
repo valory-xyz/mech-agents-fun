@@ -145,11 +145,11 @@ def _validate_inputs(
 
 
 def _generate_image_from_google_api(
-    client: genai.Client, prompt: str, model_name: Any, counter_callback: Any
+    client: genai.Client, prompt: str, model_name: Optional[str], counter_callback: Any
 ) -> Tuple[Optional[bytes], Optional[Tuple[str, str, None, Any]]]:
     """Generates image data using the Google API and handles initial response validation."""
     response = client.models.generate_images(
-        model=model_name,
+        model=model_name,  # type: ignore[arg-type]
         prompt=prompt,
         config=types.GenerateImagesConfig(number_of_images=1),
     )
@@ -177,7 +177,7 @@ def _generate_image_from_google_api(
 
 
 def _save_image_and_upload_to_ipfs(
-    image_data: bytes, prompt: str, model_name: Any, counter_callback: Any
+    image_data: bytes, prompt: str, model_name: Optional[str], counter_callback: Any
 ) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     """Saves the image data to a temporary file, uploads to IPFS, and cleans up."""
     temp_image_path = f"temp_generated_image_{os.getpid()}.png"
