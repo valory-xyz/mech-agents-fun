@@ -15,7 +15,7 @@ dependencies:
     version: ==1.17.0
   google-api-core: {}
   pillow:
-    version: ==11.2.1
+    version: ==12.1.1
   open-aea-cli-ipfs:
     version: ==2.1.0rc6
   anthropic:
