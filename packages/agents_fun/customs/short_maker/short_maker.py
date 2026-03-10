@@ -40,9 +40,9 @@ from moviepy.video.compositing.concatenate import concatenate_videoclips
 from openai import OpenAI
 from replicate import Client as ReplicateClient
 
-
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
+client: Optional[OpenAI] = None
 
 ALLOWED_TOOLS = [
     "short_maker",
@@ -56,9 +56,11 @@ REPLICATE_MINIMAX_TTS = "minimax/speech-02-turbo"
 REPLICATE_STABILITY_STABLE_VIDEO_DIFFUSION = "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438"
 
 
-def with_key_rotation(func: Callable):
+def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
+    """Wrap function with API key rotation logic."""
+
     @functools.wraps(func)
-    def wrapper(*args, **kwargs) -> MechResponse:
+    def wrapper(*args: Any, **kwargs: Any) -> MechResponse:
         # this is expected to be a KeyChain object,
         # although it is not explicitly typed as such
         api_keys = kwargs["api_keys"]
@@ -97,7 +99,7 @@ def with_key_rotation(func: Callable):
                 retries_left[service] -= 1
                 api_keys.rotate(service)
                 return execute()
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 return str(e), "", None, None, api_keys
 
         mech_response = execute()
@@ -106,9 +108,9 @@ def with_key_rotation(func: Callable):
     return wrapper
 
 
-def download_file(url: str, local_filepath: str):
+def download_file(url: str, local_filepath: str) -> str:
     """Utility function to download a file from a URL to a local path."""
-    with requests.get(url, stream=True) as r:
+    with requests.get(url, stream=True, timeout=60) as r:
         r.raise_for_status()
         with open(local_filepath, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
@@ -140,10 +142,14 @@ def get_audio_prompts(user_input: str, engine: str = "gpt-3.5-turbo") -> Dict[st
     }
     try:
         # Send the message to the chat completions endpoint
-        response = client.chat.completions.create(model=engine, messages=[message])
+        assert client is not None, "OpenAI client not initialized"
+        response = client.chat.completions.create(
+            model=engine, messages=[message]  # type: ignore[list-item]
+        )
 
         # Parse the JSON content from the response
         content = response.choices[0].message.content
+        assert content is not None, "Response content is None"
 
         # Load the content as a JSON object to ensure proper JSON formatting
         json_object = json.loads(content)
@@ -158,10 +164,8 @@ def get_audio_prompts(user_input: str, engine: str = "gpt-3.5-turbo") -> Dict[st
 
 def get_shot_prompts(
     user_input: str, voiceover_length: float, engine: str = "gpt-3.5-turbo"
-):
-    """
-    Sends a prompt to the OpenAI API and returns the response as a JSON object for video shot prompts, without verbs at the start.
-    """
+) -> Optional[Dict[str, Any]]:
+    """Send a prompt to OpenAI API and return video shot prompts as JSON."""
 
     # Calculate the number of shots needed
     number_of_shots = math.ceil(voiceover_length / 2.5)
@@ -185,24 +189,28 @@ def get_shot_prompts(
 
     try:
         # Send the message to the chat completions endpoint
-        response = client.chat.completions.create(model=engine, messages=[message])
+        assert client is not None, "OpenAI client not initialized"
+        response = client.chat.completions.create(
+            model=engine, messages=[message]  # type: ignore[list-item]
+        )
 
         # Parse the JSON content from the response
         content = response.choices[0].message.content
+        assert content is not None, "Response content is None"
 
         # Load the content as a JSON object to ensure proper JSON formatting
         json_object = json.loads(content)
 
         print(f"Shot Prompts: {json_object}")
         return json_object
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"An error occurred: {e}")
         return None
 
 
-def process_voiceover(client: ReplicateClient, text: str, voice: str) -> str:
+def process_voiceover(replicate_client: ReplicateClient, text: str, voice: str) -> str:
     """Narrate the provided text"""
-    url = client.run(
+    url = replicate_client.run(
         REPLICATE_MINIMAX_TTS,
         input={
             "text": text,
@@ -223,9 +231,11 @@ def process_voiceover(client: ReplicateClient, text: str, voice: str) -> str:
     return url
 
 
-def process_soundtrack(client: ReplicateClient, prompt: str, duration: int = 10) -> str:
+def process_soundtrack(
+    replicate_client: ReplicateClient, prompt: str, duration: int = 10
+) -> str:
     """Get a soundtrack for the provided prompt."""
-    url = client.run(
+    url = replicate_client.run(
         REPLICATE_MUSIC_GEN,
         input={
             "seed": 3442726813,
@@ -247,14 +257,12 @@ def process_soundtrack(client: ReplicateClient, prompt: str, duration: int = 10)
 
 
 def generate_images_with_dalle(
-    shot_prompts: Dict,
+    shot_prompts: Dict[str, Any],
     api_key: str,
     engine: str = "dall-e-3",
     number_of_images: int = 1,
-):
-    """
-    uses the shot prompts to generate images from dalle. These images will be used to generate videos with stability ai
-    """
+) -> Dict[str, str]:
+    """Use shot prompts to generate images from DALL-E for video generation."""
     generated_images = {}
     for shot_number, prompt in shot_prompts.items():
         try:
@@ -273,6 +281,7 @@ def generate_images_with_dalle(
                     "Stability-Client-ID": "mechs-tool",
                 },
                 json=json_params,
+                timeout=30,
             )
             response.raise_for_status()
             body = response.json()
@@ -284,23 +293,23 @@ def generate_images_with_dalle(
 
             print(f"Generated image for {shot_number}: {generated_images[shot_number]}")
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Error generating image for {shot_number}: {e}")
             generated_images[shot_number] = str(e)
 
     return generated_images
 
 
-def process_first_shots(client: ReplicateClient, shot_url: str) -> str:
-    """
-    Processes the first video shots using the Replicate API based on the given video prompt.
-    """
+def process_first_shots(
+    replicate_client: ReplicateClient, shot_url: str
+) -> Optional[str]:
+    """Process the first video shots using the Replicate API based on the given video prompt."""
     if not shot_url or not shot_url.startswith("http"):
         print(f"Invalid URL: {shot_url}")
         return None
 
     try:
-        video_url = client.run(
+        video_url = replicate_client.run(
             REPLICATE_STABILITY_STABLE_VIDEO_DIFFUSION,
             input={
                 "cond_aug": 0.02,
@@ -314,21 +323,13 @@ def process_first_shots(client: ReplicateClient, shot_url: str) -> str:
         )
         print(f"video_url: {video_url}")
         return video_url
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error processing video shot: {e}")
         return None
 
 
-def get_audio_duration(audio_file_path: str):
-    """
-    Get the duration of an audio file in seconds, rounded up to the nearest second.
-
-    Args:
-    audio_file_path (str): The file path to the audio file.
-
-    Returns:
-    int: The duration of the audio file in seconds, rounded up.
-    """
+def get_audio_duration(audio_file_path: str) -> int:
+    """Get the duration of an audio file in seconds, rounded up."""
     if not os.path.exists(audio_file_path):
         raise FileNotFoundError(f"The audio file {audio_file_path} does not exist.")
 
@@ -339,12 +340,12 @@ def get_audio_duration(audio_file_path: str):
     return duration_seconds
 
 
-def make_silence(t: float) -> List[int]:
+def make_silence(_t: float) -> List[int]:
     """Generate silence"""
     return [0]
 
 
-def compose_final_video(
+def compose_final_video(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
     video_shots: List,
     voiceover_path: str,
     soundtrack_path: str,
@@ -358,8 +359,10 @@ def compose_final_video(
     final_video_clip = concatenate_videoclips(clips)
 
     # Audio Clips
-    voiceover_clip = AudioFileClip(voiceover_path).volumex(voiceover_volume)
-    soundtrack_clip = AudioFileClip(soundtrack_path).volumex(soundtrack_volume)
+    voiceover_clip = AudioFileClip(voiceover_path)
+    voiceover_clip = voiceover_clip.volumex(voiceover_volume)
+    soundtrack_clip = AudioFileClip(soundtrack_path)
+    soundtrack_clip = soundtrack_clip.volumex(soundtrack_volume)
 
     # Determine the longest duration
     print(f"Original Video Duration: {final_video_clip.duration}")
@@ -411,7 +414,7 @@ def compose_final_video(
     return final_video_path
 
 
-def cleanup_tempdir(tmpdir: str):
+def cleanup_tempdir(tmpdir: str) -> None:
     """Remove the temporary directory and its contents."""
     if os.path.exists(tmpdir):
         shutil.rmtree(tmpdir)
@@ -419,7 +422,9 @@ def cleanup_tempdir(tmpdir: str):
 
 
 @with_key_rotation
-def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
+def run(  # pylint: disable=too-many-locals
+    **kwargs: Any,
+) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     """Run the task"""
     user_input = kwargs["prompt"]
     openai_key = kwargs["api_keys"]["openai"]
@@ -434,7 +439,7 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
         )
 
     # Initialize OpenAI client with the provided key
-    global client
+    global client  # pylint: disable=global-statement
     client = OpenAI(api_key=openai_key)
 
     replicate_key = kwargs["api_keys"]["replicate"]
@@ -460,6 +465,7 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     # Step 5: Get shot prompts
     print("Getting shot prompts...")
     shot_prompts = get_shot_prompts(user_input, voiceover_length)
+    assert shot_prompts is not None, "Failed to get shot prompts"
 
     # Step 6: Generate images with DALL-E
     print("Generating images with DALL-E...")
@@ -470,7 +476,12 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
 
     # Steps 7 & 8: Process video shots
     video_urls = [
-        process_first_shots(client_replicate, url) for url in image_links.values()
+        url
+        for url in (
+            process_first_shots(client_replicate, img_url)
+            for img_url in image_links.values()
+        )
+        if url is not None
     ]
 
     # Step 9: Process soundtrack

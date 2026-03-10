@@ -10,35 +10,25 @@ on:
 jobs:
   lock_check:
     continue-on-error: False
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-        python-version: [ "3.10" ]
-        poetry-version: ["1.4.0"]
-
-    defaults:
-      run:
-        shell: bash
+    runs-on: ubuntu-24.04
 
     timeout-minutes: 10
 
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v4
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: "3.10"
     - name: Install and configure Poetry
       uses: snok/install-poetry@v1
       with:
-        version: ${{ matrix.poetry-version }}
+        version: "2.1.2"
         virtualenvs-create: true
         virtualenvs-in-project: false
         virtualenvs-path: ~/my-custom-path
         installer-parallel: true
     - name: Check if dependencies can be locked
-      run: poetry lock --check
+      run: poetry check --lock
     - name: Poetry install requirements and check they can be locked
       run: poetry install --all-extras --no-interaction -vvv
 
@@ -48,28 +38,28 @@ jobs:
 
     strategy:
       matrix:
-        os: [ ubuntu-latest ]
+        os: [ ubuntu-24.04 ]
         python-version: [ "3.10" ]
 
     timeout-minutes: 30
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 0
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
-      run: pip install tomte[tox,cli]==0.2.14
+      run: pip install tomte[tox,cli]==0.6.2
     - name: Check copyright headers
-      run: tomte check-copyright --author valory --exclude-part abci --exclude-part http_client --exclude-part ipfs --exclude-part ledger --exclude-part p2p_libp2p_client --exclude-part gnosis_safe --exclude-part gnosis_safe_proxy_factory --exclude-part multisend --exclude-part service_registry --exclude-part protocols --exclude-part abstract_abci --exclude-part abstract_round_abci --exclude-part registration_abci --exclude-part reset_pause_abci --exclude-part termination_abci --exclude-part transaction_settlement_abci --exclude-part websocket_client --exclude-part contract_subscription --exclude-part mech --exclude-part mech_interact_abci  --exclude-part http_server
+      run: tomte check-copyright --author valory --exclude-part abci --exclude-part http_client --exclude-part ipfs --exclude-part ledger --exclude-part p2p_libp2p_client --exclude-part gnosis_safe --exclude-part gnosis_safe_proxy_factory --exclude-part multisend --exclude-part service_registry --exclude-part protocols --exclude-part abstract_abci --exclude-part abstract_round_abci --exclude-part registration_abci --exclude-part reset_pause_abci --exclude-part termination_abci --exclude-part transaction_settlement_abci --exclude-part websocket_client --exclude-part contract_subscription --exclude-part mech --exclude-part mech_interact_abci --exclude-part http_server --exclude-part erc20 --exclude-part complementary_service_metadata --exclude-part hash_checkpoint --exclude-part balance_tracker --exclude-part delivery_rate_abci --exclude-part mech_abci --exclude-part task_execution --exclude-part task_submission_abci
     - name: License compatibility check
       run: tox -e liccheck
-   - name: Check dependencies
-     run: tox -e check-dependencies
+    - name: Check dependencies
+      run: tox -e check-dependencies
     - name: Check doc links
-      run: tomte check-doc-links
+      run: tomte check-doc-links --url-skips https://github.com/tendermint/tendermint
     - name: Check doc IPFS hashes
       run: tox -e check-doc-hashes
 
@@ -79,19 +69,19 @@ jobs:
 
     strategy:
       matrix:
-        os: [ ubuntu-latest ]
+        os: [ ubuntu-24.04 ]
         python-version: [ "3.10" ]
 
     timeout-minutes: 30
 
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v4
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run:  |
-        pip install tomte[tox,cli]==0.2.17
+        pip install tomte[tox,cli]==0.6.2
 
         # Install `mdspell` for spelling checks
         sudo npm install -g markdown-spellcheck
@@ -116,9 +106,9 @@ jobs:
 
   scan:
     name: gitleaks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - run: |
@@ -137,21 +127,41 @@ jobs:
 
     strategy:
       matrix:
-        os: [ ubuntu-latest ]
-        python-version: [ "3.10" ]
+        os: [ ubuntu-24.04, macos-15, windows-2025 ]
+        python-version: [ "3.10", "3.11", "3.12", "3.13", "3.14" ]
 
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
+      - name: Install dependencies (Linux)
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           sudo apt-get update --fix-missing
           sudo apt-get autoremove
           sudo apt-get autoclean
-          pip install tomte[tox,cli]==0.2.15
+          pip install tomte[tox,cli]==0.6.2
           pip install --user --upgrade setuptools
+      - name: Install dependencies (macOS)
+        if: matrix.os == 'macos-15'
+        run: |
+          pip install tomte[tox,cli]==0.6.2
+          pip install --upgrade setuptools
+      - name: Install dependencies (Windows)
+        if: matrix.os == 'windows-2025'
+        run: |
+          pip install tomte[tox,cli]==0.6.2
+          pip install --upgrade setuptools
+      - name: Run tests (Linux)
+        if: matrix.os == 'ubuntu-24.04'
+        run: tox -e "py${{ matrix.python-version }}-linux"
+      - name: Run tests (macOS)
+        if: matrix.os == 'macos-15'
+        run: tox -e "py${{ matrix.python-version }}-darwin"
+      - name: Run tests (Windows)
+        if: matrix.os == 'windows-2025'
+        run: tox -e "py${{ matrix.python-version }}-win"

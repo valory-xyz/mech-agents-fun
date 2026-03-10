@@ -1,41 +1,54 @@
+# -*- coding: utf-8 -*-
+# ------------------------------------------------------------------------------
+#
+#   Copyright 2023-2026 Valory AG
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+# ------------------------------------------------------------------------------
+
+"""Test script for the short_maker tool."""
+
 import os
+
 from packages.agents_fun.customs.short_maker.short_maker import run
 
 
-# Define a wrapper class for API keys
 class ApiKeysWrapper:
-    def __init__(self, keys):
+    """Wrapper class for API keys."""
+
+    def __init__(self, keys: dict) -> None:
+        """Initialize ApiKeysWrapper."""
         self._keys = keys
         self._services = list(keys.keys())
         self._current_key_indices = {service: 0 for service in self._services}
-        # Define a default max_retries, can be adjusted
         self._max_retries = {service: 3 for service in self._services}
 
-    def get(self, service: str):
-        # Return the key if present, otherwise None (consistent with dict.get)
+    def get(self, service: str) -> str | None:
+        """Get key by service name."""
         return self._keys.get(service)
 
-    def __getitem__(self, service: str):
-        # Allow dictionary-style access, raises KeyError if service is not found
+    def __getitem__(self, service: str) -> str:
+        """Allow dictionary-style access."""
         return self._keys[service]
 
     def max_retries(self) -> dict:
-        return self._max_retries.copy()  # Return a copy
+        """Return max retries."""
+        return self._max_retries.copy()
 
     def rotate(self, service: str) -> None:
-        # This is a placeholder for rotation logic.
-        # If actual rotation of keys is needed (e.g., multiple keys per service),
-        # this method would need to be implemented more thoroughly.
-        # For now, it just logs that rotation is called.
+        """Rotate key for service."""
         print(f"Key rotation called for service: {service}")
-        # A simple rotation might involve advancing an index if multiple keys are stored per service.
-        # For example:
-        # if service in self._keys and isinstance(self._keys[service], list) and len(self._keys[service]) > 1:
-        #     self._current_key_indices[service] = (self._current_key_indices[service] + 1) % len(self._keys[service])
-        #     print(f"Rotated key for {service} to index {self._current_key_indices[service]}")
-        # else:
-        #     print(f"No keys to rotate for service: {service} or only one key available.")
-        pass  # Placeholder for actual rotation logic
 
 
 # Test the short_maker tool

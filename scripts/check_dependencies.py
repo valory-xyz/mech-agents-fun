@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------------------
 #
-#   Copyright 2022-2023 Valory AG
+#   Copyright 2022-2026 Valory AG
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ In particular:
 
 It is assumed the script is run from the repository root.
 """
+
 import os
 import subprocess  # nosec
 import sys
@@ -65,7 +66,7 @@ def get_package_dependencies() -> Dict[str, Any]:
             package_path=package_manager.package_path_from_package_id(
                 package_id=package
             ),
-        ).dependencies
+        ).dependencies  # type: ignore[attr-defined]
         for key, value in _dependencies.items():
             if key not in dependencies:
                 dependencies[key] = value
@@ -161,7 +162,7 @@ if __name__ == "__main__":
     update = len(sys.argv[1:]) > 0
     package_dependencies = get_package_dependencies()
     # temp hack
-    package_dependencies["requests"] = "==2.28.2"
+    package_dependencies["requests"] = ">=2.28.1,<2.33.0"
     listed_package_dependencies = load_pyproject_toml()
     original_listed_package_dependencies = deepcopy(listed_package_dependencies)
     listed_package_dependencies.update(package_dependencies)

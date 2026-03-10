@@ -4,20 +4,20 @@ version: 0.1.0
 type: custom
 description: A tool that runs a prompt against StabilityAI.
 license: Apache-2.0
-aea_version: '>=1.0.0, <2.0.0'
+aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
   __init__.py: bafybeibbn67pnrrm4qm3n3kbelvbs3v7fjlrjniywmw2vbizarippidtvi
-  stabilityai_request.py: bafybeihcx23kaixnk5rlsss6ru3or66pwcc2rh2aurq7puuwnwtn4omfuq
+  stabilityai_request.py: bafybeigleoq5ejrkovu7xzknf4qrwks4gma54urrdcjrcvcazb2x7zm53u
 fingerprint_ignore_patterns: []
 entry_point: stabilityai_request.py
 callable: run
 dependencies:
   requests: {}
   tiktoken:
-    version: ==0.7.0
+    version: ==0.12.0
   anthropic:
     version: ==0.21.3
   google-api-python-client:
-    version: ==1.12.1
+    version: ==2.130.0
   openai:
-    version: ==1.30.2
+    version: ==1.82.0

@@ -4,19 +4,21 @@ version: 0.1.0
 type: custom
 description: A tool to generate images from text using Recraft AI.
 license: Apache-2.0
-aea_version: '>=1.0.0, <2.0.0'
+aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
   __init__.py: bafybeihzptvbp7cy4m3i2wy7qhva7zqbae2olpzk2cnax6ox5fg6atwrby
-  recraft_image_gen.py: bafybeiborf7naxe3fxr6zji5haot3tn627mj6jewquo4g5lwyb37w2kt6m
+  recraft_image_gen.py: bafybeifoomn2usmbzmc5g64qrulerdnatudcq5lgdiat6so3z2y3axvg5a
 fingerprint_ignore_patterns: []
 entry_point: recraft_image_gen.py
 callable: run
 dependencies:
   pillow:
-    version: ~=10.4.0
+    version: ==12.1.1
   open-aea-cli-ipfs:
-    version: ==1.65.0
+    version: ==2.1.0rc6
   anthropic:
     version: ==0.21.3
   openai:
-    version: ==1.30.2
+    version: ==1.82.0
+  requests:
+    version: <2.33.0,>=2.28.1

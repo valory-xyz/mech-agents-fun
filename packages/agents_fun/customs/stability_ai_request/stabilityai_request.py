@@ -18,15 +18,16 @@
 # ------------------------------------------------------------------------------
 
 """Contains the job definitions"""
+
 import functools
 import json
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple, Callable
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import anthropic
-from googleapiclient.errors import HttpError as GoogleApiClientHttpError
 import openai
 import requests
+from googleapiclient.errors import HttpError as GoogleApiClientHttpError
 from tiktoken import encoding_for_model
 
 DEFAULT_STABILITYAI_SETTINGS = {
@@ -65,9 +66,11 @@ ALLOWED_TOOLS = [PREFIX + value for value in ENGINES["picture"]]
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
 
-def with_key_rotation(func: Callable):
+def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
+    """Wrap function with API key rotation logic."""
+
     @functools.wraps(func)
-    def wrapper(*args, **kwargs) -> MechResponse:
+    def wrapper(*args: Any, **kwargs: Any) -> MechResponse:
         # this is expected to be a KeyChain object,
         # although it is not explicitly typed as such
         api_keys = kwargs["api_keys"]
@@ -106,7 +109,7 @@ def with_key_rotation(func: Callable):
                 retries_left[service] -= 1
                 api_keys.rotate(service)
                 return execute()
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 return str(e), "", None, None, api_keys
 
         mech_response = execute()
@@ -130,7 +133,9 @@ class FinishReason(Enum):
 
 
 @with_key_rotation
-def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
+def run(  # pylint: disable=too-many-locals
+    **kwargs: Any,
+) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     """Run the task"""
 
     api_key = kwargs["api_keys"]["stabilityai"]
@@ -144,15 +149,19 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     engine = tool.replace(PREFIX, "")
     cfg_scale = kwargs.get("cfg_scale", DEFAULT_STABILITYAI_SETTINGS["cfg_scale"])
     weight = kwargs.get("weight", DEFAULT_STABILITYAI_SETTINGS["weight"])
-    clip_guidance_preset = kwargs.get("clip_guidance_preset", DEFAULT_STABILITYAI_SETTINGS["clip_guidance_preset"])
-    
+    clip_guidance_preset = kwargs.get(
+        "clip_guidance_preset", DEFAULT_STABILITYAI_SETTINGS["clip_guidance_preset"]
+    )
+
     # Handle different engine types
     if engine == "stable-diffusion-xl-1024-v1-0":
-        height = kwargs.get("height", ENGINE_SIZE_CHART[engine][0]["height"])  # Access first size as default
-        width = kwargs.get("width", ENGINE_SIZE_CHART[engine][0]["width"])
+        height = kwargs.get(
+            "height", ENGINE_SIZE_CHART[engine][0]["height"]  # type: ignore[index]
+        )  # Access first size as default
+        width = kwargs.get("width", ENGINE_SIZE_CHART[engine][0]["width"])  # type: ignore[index]
     else:  # For stable-diffusion-v1-6
-        height = kwargs.get("height", ENGINE_SIZE_CHART[engine]["height"])
-        width = kwargs.get("width", ENGINE_SIZE_CHART[engine]["width"])
+        height = kwargs.get("height", ENGINE_SIZE_CHART[engine]["height"])  # type: ignore[index]
+        width = kwargs.get("width", ENGINE_SIZE_CHART[engine]["width"])  # type: ignore[index]
 
     samples = kwargs.get("samples", DEFAULT_STABILITYAI_SETTINGS["samples"])
     steps = kwargs.get("steps", DEFAULT_STABILITYAI_SETTINGS["steps"])
@@ -184,6 +193,7 @@ def run(**kwargs) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
             "Stability-Client-ID": "mechs-tool",
         },
         json=json_params,
+        timeout=30,
     )
     if response.status_code == 200:
         return json.dumps(response.json()), None, None, None

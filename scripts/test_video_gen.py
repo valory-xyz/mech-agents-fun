@@ -1,6 +1,28 @@
-import os
+# -*- coding: utf-8 -*-
+# ------------------------------------------------------------------------------
+#
+#   Copyright 2023-2026 Valory AG
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+# ------------------------------------------------------------------------------
+
+"""Test script for the google_video_gen tool."""
+
 import json
-from typing import Dict, Optional
+import os
+import sys
+
 from dotenv import load_dotenv
 
 # Import the run function from your tool
@@ -8,7 +30,6 @@ from packages.agents_fun.customs.google_video_gen.google_video_gen import run
 
 # Import the robust KeyChain class
 from packages.valory.skills.task_execution.utils.apis import KeyChain
-
 
 # Test the google_image_gen tool
 if __name__ == "__main__":
@@ -27,15 +48,15 @@ if __name__ == "__main__":
             masked_key = f"{gemini_api_key_str[:2]}{'*' * (key_len - 4)}{gemini_api_key_str[-2:]}"
         else:
             # For very short keys (4 characters or less), mask the entire key.
-            masked_key = '*' * key_len
+            masked_key = "*" * key_len
         print(f"GEMINI_API_KEY from env: {masked_key}")
     else:
         print("Error: GEMINI_API_KEY environment variable not set.")
-        exit(1)
+        sys.exit(1)
 
     if len(gemini_api_key_str) == 0:
         print("Error: GEMINI_API_KEY environment variable not set.")
-        exit(1)
+        sys.exit(1)
 
     # KeyChain expects a dictionary where values are lists of keys.
     # For a single key, it should be in a list.
@@ -53,7 +74,7 @@ if __name__ == "__main__":
         print(
             "Error: GEMINI_API_KEY was not properly configured for KeyChain (e.g., it's None even after os.getenv)."
         )
-        exit(1)
+        sys.exit(1)
 
     api_keys_instance = KeyChain(valid_services_config)
 
@@ -85,5 +106,5 @@ if __name__ == "__main__":
         print(f"  Model Used: {result_data.get('model')}")
     except json.JSONDecodeError:
         print("\nResult is not valid JSON.")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"\nCould not parse result string: {e}")

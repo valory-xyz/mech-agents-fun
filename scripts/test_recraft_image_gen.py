@@ -1,5 +1,27 @@
-import os
+# -*- coding: utf-8 -*-
+# ------------------------------------------------------------------------------
+#
+#   Copyright 2023-2026 Valory AG
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+# ------------------------------------------------------------------------------
+
+"""Test script for the recraft_image_gen tool."""
+
 import json
+import os
+import sys
 from typing import Dict, Optional
 
 from dotenv import load_dotenv
@@ -8,24 +30,25 @@ from dotenv import load_dotenv
 from packages.agents_fun.customs.recraft_image_gen.recraft_image_gen import run
 
 
-# Minimal KeyChain class to mimic the expected structure
 class KeyChain:
-    def __init__(self, api_keys: Dict[str, Optional[str]]):
-        self._keys = api_keys
-        self._max_retries = {k: 1 for k in api_keys}  # Simple retry count
+    """Minimal KeyChain class to mimic the expected structure."""
+
+    def __init__(self, keys: Dict[str, Optional[str]]) -> None:
+        """Initialize KeyChain."""
+        self._keys = keys
+        self._max_retries = {k: 1 for k in keys}
 
     def get(self, key_name: str) -> Optional[str]:
+        """Get key by name."""
         return self._keys.get(key_name)
 
     def max_retries(self) -> Dict[str, int]:
-        # Return a copy to prevent modification
+        """Return max retries."""
         return self._max_retries.copy()
 
-    def rotate(self, service: str):
-        # Placeholder for rotation logic if needed for testing complex scenarios
+    def rotate(self, service: str) -> None:
+        """Rotate key for service."""
         print(f"[KeyChain] Rotating key for {service} (placeholder)")
-        # In a real scenario, this would fetch a new key
-        pass
 
 
 if __name__ == "__main__":
@@ -36,7 +59,7 @@ if __name__ == "__main__":
     print(f"recraft_api_key: {recraft_api_key}")
     if not recraft_api_key:
         print("Error: RECRAFT_API_KEY environment variable not set.")
-        exit(1)
+        sys.exit(1)
 
     # Create the KeyChain object
     api_keys = KeyChain({"recraft_api_key": recraft_api_key})
@@ -68,5 +91,5 @@ if __name__ == "__main__":
         print(f"  Image Hash: {result_data.get('image_hash')}")
     except json.JSONDecodeError:
         print("\nResult is not valid JSON.")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"\nCould not parse result string: {e}")
