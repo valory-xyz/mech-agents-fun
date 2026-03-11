@@ -20,7 +20,7 @@ dependencies:
   pillow:
     version: ==12.1.1
   open-aea-cli-ipfs:
-    version: ==2.1.0rc6
+    version: ==2.1.0
   anthropic:
     version: ==0.21.3
   openai:
