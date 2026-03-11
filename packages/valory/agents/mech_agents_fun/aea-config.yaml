@@ -89,7 +89,7 @@ dependencies:
   hypothesis:
     version: ==6.21.6
   open-aea-ledger-ethereum:
-    version: ==2.1.0rc6
+    version: ==2.1.0
   openai:
     version: ==1.82.0
   replicate:
