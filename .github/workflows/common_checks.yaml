@@ -131,6 +131,11 @@ jobs:
         python-version: [ "3.10", "3.11", "3.12", "3.13", "3.14" ]
 
     timeout-minutes: 120
+
+    env:
+      STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
     steps:
       - uses: actions/checkout@v6
         with:

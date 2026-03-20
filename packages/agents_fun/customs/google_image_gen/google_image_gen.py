@@ -35,6 +35,8 @@ from google.genai import types
 # Define MechResponse type alias matching the other tools
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
+DEFAULT_MODEL = "imagen-4.0-generate-001"
+
 # Define allowed tools for this module
 ALLOWED_TOOLS = [
     "google_image_gen",
@@ -210,7 +212,7 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
     api_key = api_keys.get("gemini_api_key", None)
     tool = kwargs.get("tool")
     counter_callback = kwargs.get("counter_callback", None)
-    model_name = kwargs.get("model")
+    model_name = kwargs.get("model") or DEFAULT_MODEL
 
     validation_error = _validate_inputs(tool, api_key, prompt, counter_callback)
     if validation_error:

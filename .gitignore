@@ -24,6 +24,7 @@ backup_mech/
 /pip
 /tool_test.py
 .venv
+.tool_venvs/
 log
 .benchmark-cache
 .claude

@@ -50,8 +50,9 @@ skills:
 - valory/transaction_settlement_abci:0.1.0:bafybeiezf3kh5f4jmxnwoylc4krghzrkfknkc2r6vve3rgb5eumloco33e
 - valory/websocket_client:0.1.0:bafybeie63j65ffblz6g6oiaynjpz4ae5mgyjz2w6o5ovqitzdbnvqzlhzu
 customs:
+- agents_fun/google_image_gen:0.1.0:bafybeibceev62inl3h3weivjds7vrgb7raf7d5r5g5mxg7bezbn3pbvqre
 - agents_fun/short_maker:0.1.0:bafybeicyqc77ffnktu7g7egbcwkx2f7xl6tcdill2t6akkhdieycqsbc6m
-- agents_fun/stability_ai_request:0.1.0:bafybeicjocs5eyskr5ofrjgrqqbpomoj5higspes63pkc2mdacbt3l4l74
+- agents_fun/stability_ai_request:0.1.0:bafybeihndmvigf7vufvwbg24mbdhgbqqlrbuanr6sm5qtoavvmbautsd3e
 default_ledger: ethereum
 required_ledgers:
 - ethereum
@@ -112,6 +113,9 @@ dependencies:
     version: ==12.1.1
   pebble:
     version: ==5.1.3
+  google-api-core: {}
+  open-aea-cli-ipfs:
+    version: ==2.1.0
 default_connection: null
 ---
 public_id: valory/websocket_client:0.1.0:bafybeiexove4oqyhoae5xmk2hilskthosov5imdp65olpgj3cfrepbouyy

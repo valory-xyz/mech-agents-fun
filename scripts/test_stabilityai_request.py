@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
     # Sample input parameters
     # Use a tool from ALLOWED_TOOLS in stabilityai_request.py
-    # e.g., "stabilityai-stable-diffusion-xl-1024-v1-0" or "stabilityai-stable-diffusion-v1-6"
+    # e.g., "stabilityai-stable-diffusion-xl-1024-v1-0"
     kwargs = {
         "prompt": "A beautiful landscape painting in the style of Monet.",
         "api_keys": api_keys,
@@ -110,7 +110,7 @@ if __name__ == "__main__":
             print("\nParsed Result Data:")
             if isinstance(result_data, dict) and "artifacts" in result_data:
                 for i, artifact in enumerate(result_data["artifacts"]):
-                    print(f"  Artifact {i+1}:")
+                    print(f"  Artifact {i + 1}:")
                     print(f"    Base64 Length: {len(artifact.get('base64', ''))}")
                     print(f"    Finish Reason: {artifact.get('finishReason')}")
                     print(f"    Seed: {artifact.get('seed')}")
