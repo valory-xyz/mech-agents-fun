@@ -113,6 +113,9 @@ dependencies:
     version: ==12.1.1
   pebble:
     version: ==5.1.3
+  google-api-core: {}
+  open-aea-cli-ipfs:
+    version: ==2.1.0
 default_connection: null
 ---
 public_id: valory/websocket_client:0.1.0:bafybeiexove4oqyhoae5xmk2hilskthosov5imdp65olpgj3cfrepbouyy
