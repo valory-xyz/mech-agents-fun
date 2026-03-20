@@ -158,8 +158,8 @@ def run(  # pylint: disable=too-many-locals
         )  # Access first size as default
         width = kwargs.get("width", ENGINE_SIZE_CHART[engine][0]["width"])  # type: ignore[index]
     else:
-        height = kwargs.get("height", ENGINE_SIZE_CHART[engine]["height"])  # type: ignore[index]
-        width = kwargs.get("width", ENGINE_SIZE_CHART[engine]["width"])  # type: ignore[index]
+        height = kwargs.get("height", ENGINE_SIZE_CHART[engine]["height"])  # type: ignore[call-overload]
+        width = kwargs.get("width", ENGINE_SIZE_CHART[engine]["width"])  # type: ignore[call-overload]
 
     samples = kwargs.get("samples", DEFAULT_STABILITYAI_SETTINGS["samples"])
     steps = kwargs.get("steps", DEFAULT_STABILITYAI_SETTINGS["steps"])
