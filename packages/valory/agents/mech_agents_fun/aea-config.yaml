@@ -52,7 +52,7 @@ skills:
 customs:
 - agents_fun/google_image_gen:0.1.0:bafybeibceev62inl3h3weivjds7vrgb7raf7d5r5g5mxg7bezbn3pbvqre
 - agents_fun/short_maker:0.1.0:bafybeicyqc77ffnktu7g7egbcwkx2f7xl6tcdill2t6akkhdieycqsbc6m
-- agents_fun/stability_ai_request:0.1.0:bafybeicc47vatxvmoar7xvco5zeno7pr3xdgg7xpwjnhpyswddi7lxoab4
+- agents_fun/stability_ai_request:0.1.0:bafybeihndmvigf7vufvwbg24mbdhgbqqlrbuanr6sm5qtoavvmbautsd3e
 default_ledger: ethereum
 required_ledgers:
 - ethereum
