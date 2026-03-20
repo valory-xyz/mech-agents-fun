@@ -199,15 +199,18 @@ def run_tool_in_isolated_venv(
     module_path: str,
     prompts: List[str],
     callable_name: str = DEFAULT_CALLABLE,
+    required_env_vars: List[str] = None,
     timeout: int = RUNNER_TIMEOUT_SECONDS,
 ) -> Dict[str, Any]:
     """Run a tool test inside an isolated venv matching its component.yaml deps.
 
+    If required_env_vars is provided, it overrides the auto-detected list.
     Returns the parsed JSON results from the runner subprocess.
     """
     component_name = Path(component_yaml).parent.name
 
-    required_env_vars = _required_env_vars_for_component(component_yaml)
+    if required_env_vars is None:
+        required_env_vars = _required_env_vars_for_component(component_yaml)
     logger.info("[%s] Required API keys: %s", component_name, ", ".join(required_env_vars) or "(none)")
     _check_env_vars(required_env_vars)
 

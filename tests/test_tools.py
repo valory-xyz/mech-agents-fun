@@ -125,6 +125,7 @@ class BaseIsolatedToolTest:
     prompts: list
     callable_name: str = DEFAULT_CALLABLE
     required_response_fields: List[str] = []
+    required_env_vars: List[str] = []
 
     def test_run(self) -> None:
         """Run the tool in an isolated venv and validate results."""
@@ -133,6 +134,7 @@ class BaseIsolatedToolTest:
             module_path=_module_path_from_config(self.component_yaml),
             prompts=self.prompts,
             callable_name=self.callable_name,
+            required_env_vars=self.required_env_vars or None,
         )
         results = output[RESULT_KEY_RESULTS]
         _assert_all_passed(results)
@@ -145,6 +147,7 @@ class TestGoogleImageGen(BaseIsolatedToolTest):
     component_yaml = GOOGLE_IMAGE_GEN_CONFIG
     prompts = [IMAGE_GEN_PROMPT]
     required_response_fields = ["image_hash", "prompt", "model"]
+    required_env_vars = ["GEMINI_API_KEY"]
 
 
 @pytest.mark.xfail(reason="Video generation is not implemented yet — tool only generates audio")
@@ -178,3 +181,4 @@ class TestStabilityAIRequest(BaseIsolatedToolTest):
     component_yaml = STABILITY_AI_REQUEST_CONFIG
     prompts = [IMAGE_GEN_PROMPT]
     required_response_fields = ["artifacts"]
+    required_env_vars = ["STABILITY_API_KEY"]
