@@ -110,7 +110,7 @@ if __name__ == "__main__":
             print("\nParsed Result Data:")
             if isinstance(result_data, dict) and "artifacts" in result_data:
                 for i, artifact in enumerate(result_data["artifacts"]):
-                    print(f"  Artifact {i+1}:")
+                    print(f"  Artifact {i + 1}:")
                     print(f"    Base64 Length: {len(artifact.get('base64', ''))}")
                     print(f"    Finish Reason: {artifact.get('finishReason')}")
                     print(f"    Seed: {artifact.get('seed')}")
