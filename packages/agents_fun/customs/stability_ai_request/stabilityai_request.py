@@ -43,7 +43,6 @@ PREFIX = "stabilityai-"
 ENGINES = {
     "picture": [
         "stable-diffusion-xl-1024-v1-0",
-        "stable-diffusion-v1-6",
     ]
 }
 ENGINE_SIZE_CHART = {
@@ -57,7 +56,6 @@ ENGINE_SIZE_CHART = {
         {"height": 1536, "width": 640},
         {"height": 640, "width": 1536},
     ],
-    "stable-diffusion-v1-6": {"height": 512, "width": 512},
 }
 
 ALLOWED_TOOLS = [PREFIX + value for value in ENGINES["picture"]]
@@ -159,7 +157,7 @@ def run(  # pylint: disable=too-many-locals
             "height", ENGINE_SIZE_CHART[engine][0]["height"]  # type: ignore[index]
         )  # Access first size as default
         width = kwargs.get("width", ENGINE_SIZE_CHART[engine][0]["width"])  # type: ignore[index]
-    else:  # For stable-diffusion-v1-6
+    else:
         height = kwargs.get("height", ENGINE_SIZE_CHART[engine]["height"])  # type: ignore[index]
         width = kwargs.get("width", ENGINE_SIZE_CHART[engine]["width"])  # type: ignore[index]
 

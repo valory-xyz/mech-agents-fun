@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
     # Sample input parameters
     # Use a tool from ALLOWED_TOOLS in stabilityai_request.py
-    # e.g., "stabilityai-stable-diffusion-xl-1024-v1-0" or "stabilityai-stable-diffusion-v1-6"
+    # e.g., "stabilityai-stable-diffusion-xl-1024-v1-0"
     kwargs = {
         "prompt": "A beautiful landscape painting in the style of Monet.",
         "api_keys": api_keys,
