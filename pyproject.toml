@@ -69,6 +69,7 @@ pyyaml = "<7.0.0,>=6.0.0"
 werkzeug = "*"
 attrs = "*"
 google-api-core = "*"
+aea-helpers = ">=0.1.0"
 
 [tool.poetry.group.dev.dependencies]
 setuptools = "^78.0.1"
