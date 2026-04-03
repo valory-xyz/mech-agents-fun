@@ -5,8 +5,8 @@
         "custom/agents_fun/google_image_gen/0.1.0": "bafybeibceev62inl3h3weivjds7vrgb7raf7d5r5g5mxg7bezbn3pbvqre",
         "custom/agents_fun/recraft_image_gen/0.1.0": "bafybeihahztvfpdpjtvxca72gg5seqbrmrrwnbxnm5vcry3ocqofaekyde",
         "custom/agents_fun/google_video_gen/0.1.0": "bafybeig6jjdm4ta5bml6jotrd7neqnfy5hmp6ey3evezt566nyivoxwooa",
-        "agent/valory/mech_agents_fun/0.1.0": "bafybeiccvhewmzy7lmt3fckz7fw6ggkmlayzczy75dd72s54tl2fw7cdie",
-        "service/valory/mech_agents_fun/0.1.0": "bafybeiahzpfglopurndq5bjrdovxtlhh4zavz4oxo4htqcc2xuafaq7ir4"
+        "agent/valory/mech_agents_fun/0.1.0": "bafybeifzx3tdggal77t7cdqr5prgukkv2bsg6yfufqmiijhoaebfigohw4",
+        "service/valory/mech_agents_fun/0.1.0": "bafybeihgzzqmjyzzpld67tlfsg7lwncaad7um6fdw67j4jk33vpcowxgrm"
     },
     "third_party": {
         "protocol/valory/default/1.0.0": "bafybeifqcqy5hfbnd7fjv4mqdjrtujh2vx3p2xhe33y67zoxa6ph7wdpaq",
@@ -47,8 +47,8 @@
         "skill/valory/reset_pause_abci/0.1.0": "bafybeidcnf77bc3o7pssa5zesilpbm4ley2k45taii5j5rrvvty7uhu3lq",
         "skill/valory/termination_abci/0.1.0": "bafybeia33hlouukdpwaxctunauudv5gpfdxndimra7yqiof4a3skcwdqkq",
         "skill/valory/delivery_rate_abci/0.1.0": "bafybeifpoqkcdwpyq4lijumyt3gzj3vs3pfxxm4xefqxagd4b5pg6x3vty",
-        "skill/valory/mech_abci/0.1.0": "bafybeifkutq4zmcd7xfdyoisqy74zfko6obxhvkfscqkeuymsnorq7ydb4",
-        "skill/valory/task_execution/0.1.0": "bafybeih6dsrn2v4ftizcl2tdpp6ftx2d4hpfqvqascfx3ggmufczhofyty",
-        "skill/valory/task_submission_abci/0.1.0": "bafybeid3bjxx6a4p7fqryk4tveu7epy4oh7aw52ieaairojxmpu5xlb7qe"
+        "skill/valory/mech_abci/0.1.0": "bafybeid4il2xh73i4t7ovn57maz6vq3gzbc4atf2newjj6k6qx3jqdxsmy",
+        "skill/valory/task_execution/0.1.0": "bafybeic4chng44o3kes3n7akzxlcop2iskepyj6qidpsvozmb3xysv7gdi",
+        "skill/valory/task_submission_abci/0.1.0": "bafybeibj6jltjaghbjto6uw57uh27mdfgbl53lv6rhwgp52fjr3d44akxu"
     }
 }
