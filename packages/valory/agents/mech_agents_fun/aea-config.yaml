@@ -51,7 +51,7 @@ skills:
 - valory/websocket_client:0.1.0:bafybeie63j65ffblz6g6oiaynjpz4ae5mgyjz2w6o5ovqitzdbnvqzlhzu
 customs:
 - agents_fun/google_image_gen:0.1.0:bafybeicapwn4v5iw7umyjaggwrarb4q7p4szbnmmf4pbwc7f6bqsfetjgu
-- agents_fun/short_maker:0.1.0:bafybeihf6kudgcsrb6v6ixfpxc73aqzz5kvaqo63si265misktljbsd7su
+- agents_fun/short_maker:0.1.0:bafybeicffrozhrxb3qng6ffl5x2vdteobifzl7lowmvoajgyx2eeke2ype
 - agents_fun/stability_ai_request:0.1.0:bafybeihndmvigf7vufvwbg24mbdhgbqqlrbuanr6sm5qtoavvmbautsd3e
 default_ledger: ethereum
 required_ledgers:
