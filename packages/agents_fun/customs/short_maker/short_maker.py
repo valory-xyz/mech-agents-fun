@@ -511,7 +511,7 @@ def run(  # pylint: disable=too-many-locals
 
     ipfs_tool = IPFSTool()
     _, video_hash_, _ = ipfs_tool.add(final_video_path, wrap_with_directory=False)
-    image_hash_ = ipfs_tool.client.add(
+    image_hash_ = ipfs_tool.client.add(  # pylint: disable=unexpected-keyword-arg
         first_shot_path, cid_version=1, wrap_with_directory=False
     )["Hash"]
 
