@@ -169,3 +169,17 @@ jobs:
       - name: Run tests (Windows)
         if: matrix.os == 'windows-2025'
         run: tox -e "py${{ matrix.python-version }}-win"
+
+  all-checks-passed:
+    name: All checks passed
+    if: always()
+    needs:
+      - lock_check
+      - copyright_and_dependencies_check
+      - linter_checks
+      - scan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fail if any required job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
