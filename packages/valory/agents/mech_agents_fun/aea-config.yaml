@@ -7,24 +7,24 @@ aea_version: '>=2.0.0, <3.0.0'
 fingerprint: {}
 fingerprint_ignore_patterns: []
 connections:
-- valory/abci:0.1.0:bafybeihgtguy5ljj2rwgwoxeor5d565alwfggnuevss7malhzdats6nfqi
+- valory/abci:0.1.0:bafybeibcpvyteijct4rz3zl63sn5zwuiwtn6gt6guvr5gufko4332ybgcu
 - valory/http_client:0.23.0:bafybeihel6sg2yayxu7lqygaswdgciaxpqrgsbl5rwx74c6znu5qz2edd4
 - valory/http_server:0.22.0:bafybeihs6dufyaa5l4uorplzx3wiyna5qlq2x43tmyl3yonkl265vspdle
-- valory/ipfs:0.1.0:bafybeiddxbjccmzkknny5pbfupxgexp4w4pwiu2rny4a6vnlxwqs3mmfo4
+- valory/ipfs:0.1.0:bafybeic4cubtc6jbejq7yt7fjlibuixofb6wqpfoc5vt2h4wpaahi5y5bi
 - valory/ledger:0.19.0:bafybeidqf5dmueqm655z3bkw36mviobpcpuek4bhha7iq2nnz6sfu32kva
 - valory/p2p_libp2p_client:0.1.0:bafybeielj3jso3wvrarp5n5rq7llpw4vgxybqiyensgjalb5ubfiawwhhu
 - valory/websocket_client:0.1.0:bafybeid4cnbjpmzcsw3usg7umufgqyod2u3xfw5uso3vukt3n5hfuxvdea
 contracts:
-- valory/olas_mech:0.1.0:bafybeidzg7wkjlbjnci2by5kadzdg7jkltqifksu6gt7jltf6stz5ouroa
-- valory/complementary_service_metadata:0.1.0:bafybeibjk5gdgc54wx5bz4fl2666urmfj6mx3ocqxyumqpj7wq5fdg4diu
-- valory/gnosis_safe:0.1.0:bafybeicm3rxjpqc4kcjmxoj5ixqfzu6jn4alalyn3xuqxa5y2g22kpp72m
-- valory/gnosis_safe_proxy_factory:0.1.0:bafybeihif56mb6ulfhdq7mjkftcjzg2xhk63isptumakp2b46azridsmzu
-- valory/hash_checkpoint:0.1.0:bafybeibtskfso2he4dfu5h6hwqdp7i3lplzljc7yn6prnbqbpuqa2y6eze
-- valory/multisend:0.1.0:bafybeihx7c3xj6c5v4tgvu3ipnj7seyc4dkmovoyzu4isgbwdrhj2oo6uq
-- valory/service_registry:0.1.0:bafybeib6lrxpbhsrg32bueif53vnb3xecyjxzk6rhd2t2xot27qtbeyvjm
-- valory/mech_marketplace:0.1.0:bafybeidnd7vjgmpyyova5u723y74hc4xwhbtstvsgiqqdzxb334nuomicy
-- valory/balance_tracker:0.1.0:bafybeicwyd2w5f56d5sswezj5q2dd5vnwe3y7vssslk7tpsxegvq7faesy
-- valory/erc20:0.1.0:bafybeic3epzrwrcqgrtj7vom5kdldugnuvk6lvh437ped4ciktqbtdy5em
+- valory/olas_mech:0.1.0:bafybeic7tj2e4xit74p6dcgmi5qjoqa4sjgybcd2fb6m6n6t2tpsllgajq
+- valory/complementary_service_metadata:0.1.0:bafybeihukaditdbnvhkxnt2bfqtclfnniw6l2dwks4dx3hhzlvt46ilduq
+- valory/gnosis_safe:0.1.0:bafybeihljnuo6jiyqfvow4vgxy5ih4eha2pjtguh7o6pabe24lbd6mwjaa
+- valory/gnosis_safe_proxy_factory:0.1.0:bafybeihpzvi2rxvdzujrqivnynsoqezklval6j3qeoxaitquktvwscqgra
+- valory/hash_checkpoint:0.1.0:bafybeicullhpijo2t7v2najfc5antzwofqe4ctqhvl5nwuoct54q7d4jcu
+- valory/multisend:0.1.0:bafybeic4534fd4axozjmykpstgjynxzpkpfvnvyjt7hz32ajfe3fmwhn7m
+- valory/service_registry:0.1.0:bafybeifuexvcj6w3j2lludzxi3rgu2nn2b3toyifxiy46hv726o2bxivjm
+- valory/mech_marketplace:0.1.0:bafybeifhsokyqboq6acuvysjrypuly3ozpsopgzlwmgp5qzojyfmbqm67u
+- valory/balance_tracker:0.1.0:bafybeic3hsy34eq23ld24qkm5kbtx3k45cw2dx4eoangyvsavsz5pj3w7i
+- valory/erc20:0.1.0:bafybeigjxwhx4li5hmyv3hrtatwq65gl4wihqysaq5pqlpmw5o4lymfv6y
 protocols:
 - open_aea/signing:1.0.0:bafybeifsjmldwyki3beqyvdt5lzenrg6wyrqaar5plc5rpnvtc4zlentye
 - valory/abci:0.1.0:bafybeiak4pwac3pwjtd7weskxdhkrcopckr32vtazfbuteu6yqjkwarpte
@@ -37,18 +37,18 @@ protocols:
 - valory/tendermint:0.1.0:bafybeihzb7e32f7jcrzvubilqaxzmyk7ea6ss3pg3tliatdlrr76qeknyq
 - valory/websocket_client:0.1.0:bafybeig6omutaqt5rbvidju4zc7pwwdi6tkagwu3dwiirosadyoo534v3q
 skills:
-- valory/abstract_abci:0.1.0:bafybeif4jcv22xrmkwiaecyyli7iknmdhtkg6dmzqmwpqekmvxyr7ba3xy
-- valory/abstract_round_abci:0.1.0:bafybeihgbc5geup3ljdfgyontr2p5e4myxjkthaplm5ei727uw2pawstcy
-- valory/contract_subscription:0.1.0:bafybeibtcbtgm5ptzn6srfts3lxts5722sygmkypcknv5ocmydqwcvgeem
-- valory/mech_abci:0.1.0:bafybeibqefqukwx57fpgtj3cbdvs657ufzx2jxylbeme43aqy3unkca6ly
-- valory/registration_abci:0.1.0:bafybeib7midws7obgz34tqsebowa73z46pm34hhsssa3rjet2npp5ekvwm
-- valory/reset_pause_abci:0.1.0:bafybeiezqq76bdcrlgshyo2e544sm3u57amerpwla3sacosle5zivaij24
-- valory/delivery_rate_abci:0.1.0:bafybeibheck73evaonbm5edhg5bfzgoqibpbd7yxeac2tgeswbisj7rmx4
-- valory/task_execution:0.1.0:bafybeihaodsuapiriafm5iq4m376f2dgqalfeiaol2yh65lnnxzn23r3xq
-- valory/task_submission_abci:0.1.0:bafybeig33iplacumu4chnb7nkxh3ilmy2tjeumrjonsk5crhev64q2jft4
-- valory/termination_abci:0.1.0:bafybeigp6mrueymod7a7arxn2p5mvvz2klvhhda3pls32z4fyxibqjisqu
-- valory/transaction_settlement_abci:0.1.0:bafybeic6f4ujckiutqxueagohb5iv7kgzpamhuhiq7shn6fmiwbkt3cqny
-- valory/websocket_client:0.1.0:bafybeie63j65ffblz6g6oiaynjpz4ae5mgyjz2w6o5ovqitzdbnvqzlhzu
+- valory/abstract_abci:0.1.0:bafybeib5qjkpfsxjcur4asube6kctmy2xsrg2hzcele2tmvsstula4lt54
+- valory/abstract_round_abci:0.1.0:bafybeiesqybjt2d3cwazu5xurye7znnkidem2qhudfvjnaprbk6p5flfe4
+- valory/contract_subscription:0.1.0:bafybeid54vlzq42vbeqdr3yu4b7fmjivd7dj4fiqe2rejr7u6woq7ai6ca
+- valory/mech_abci:0.1.0:bafybeihf6wucvh4a5zeilqwczzd6jlnv4eycsoqwvefktosxsxpo44ey4q
+- valory/registration_abci:0.1.0:bafybeidywralavqvrmzxomdgnthngqfzhbpop6n23pwf67lg2p6ndvt3fy
+- valory/reset_pause_abci:0.1.0:bafybeiahbkc4gfcmcvifbs6dvhtcj6wtjr7bvvdxunhxxquglkv365lu3e
+- valory/delivery_rate_abci:0.1.0:bafybeifix7cdoo4oea4ca7apwuphmtkzd4o6iipo7tkfjj6mnsnccnbipe
+- valory/task_execution:0.1.0:bafybeig57bhaohkufuudvpli3enkfq4fon7ypta7mcrtraakcxnd2khcym
+- valory/task_submission_abci:0.1.0:bafybeigbd5rsgwua6sec2en6qmfjt3wc7n3hqdabc4yeewqw6lengngfza
+- valory/termination_abci:0.1.0:bafybeic7wo6vp7ag2yhirxgftim6mjmo225v2lixfxuj5q6rdp7mj6ujqy
+- valory/transaction_settlement_abci:0.1.0:bafybeiemyjkxj2ifzjr5kubtebpyezocl33zxt7gwf7yongg6zlbfjilte
+- valory/websocket_client:0.1.0:bafybeid6oyycsrvk4duftffs5mrfgmcepibt3qe4om3kfzhwhilfq3ynay
 customs:
 - agents_fun/google_image_gen:0.1.0:bafybeicapwn4v5iw7umyjaggwrarb4q7p4szbnmmf4pbwc7f6bqsfetjgu
 - agents_fun/short_maker:0.1.0:bafybeicffrozhrxb3qng6ffl5x2vdteobifzl7lowmvoajgyx2eeke2ype
@@ -85,12 +85,10 @@ logging_config:
 dependencies:
   aiohttp:
     version: <4.0.0,>=3.8.5
-  typing_extensions:
-    version: <=4.15.0,>=3.10.0.2
   hypothesis:
     version: ==6.21.6
   open-aea-ledger-ethereum:
-    version: ==2.1.0
+    version: ==2.2.1
   openai:
     version: ==1.82.0
   replicate:
@@ -104,7 +102,7 @@ dependencies:
   tiktoken:
     version: ==0.12.0
   requests:
-    version: <2.33.0,>=2.28.1
+    version: ==2.32.5
   httpx:
     version: ==0.28.1
   google-genai:
@@ -115,7 +113,7 @@ dependencies:
     version: ==5.1.3
   google-api-core: {}
   open-aea-cli-ipfs:
-    version: ==2.1.0
+    version: ==2.2.1
 default_connection: null
 ---
 public_id: valory/websocket_client:0.1.0:bafybeiexove4oqyhoae5xmk2hilskthosov5imdp65olpgj3cfrepbouyy

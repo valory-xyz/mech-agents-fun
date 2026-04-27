@@ -57,6 +57,8 @@ jobs:
       run: tox -e liccheck
     - name: Check dependencies
       run: tox -e check-dependencies
+    - name: Check third-party package hashes match upstream
+      run: tox -e check-third-party-hashes
     - name: Check doc links
       run: tomte check-doc-links --url-skips https://github.com/tendermint/tendermint
     - name: Check doc IPFS hashes
