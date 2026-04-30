@@ -31,9 +31,11 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import anthropic
 import requests
 from aea_cli_ipfs.ipfs_utils import IPFSTool
-from google import genai
-from google.api_core import exceptions as google_exceptions
-from google.genai import types
+from google import genai  # type: ignore[import-not-found]
+from google.api_core import (
+    exceptions as google_exceptions,  # type: ignore[import-not-found]
+)
+from google.genai import types  # type: ignore[import-not-found]
 from moviepy.audio.AudioClip import AudioClip, concatenate_audioclips
 from moviepy.audio.fx.audio_fadeout import audio_fadeout
 from moviepy.editor import AudioFileClip, ColorClip, CompositeAudioClip, VideoFileClip

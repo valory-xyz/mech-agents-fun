@@ -25,7 +25,7 @@ from io import BytesIO
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import requests
-from PIL import Image
+from PIL import Image  # type: ignore[import-not-found]
 from aea_cli_ipfs.ipfs_utils import IPFSTool
 from openai import OpenAI
 
