@@ -61,7 +61,7 @@ Repository = "https://github.com/valory-xyz/agents-fun-mech"
 [dependency-groups]
 dev = [
     "setuptools>=78.0.1,<79",
-    "tomte[cli, tests] @ git+https://github.com/valory-xyz/tomte.git@01ecfd5b2b68021bc94b76d9581eb3944bbd41b2",
+    "tomte[cli, tests] @ git+https://github.com/valory-xyz/tomte.git@92cb14f4696bf3eba3ceec36e1a915961d5c7992",
 ]
 
 [tool.uv]
@@ -75,7 +75,7 @@ prerelease = "allow"
 packages_paths = "packages/valory"
 # Third-party skills/contracts on disk are synced from mech upstream.
 upstream_pins = ["valory-xyz/mech@v0.31.2"]
-tomte_dep_pin = " @ git+https://github.com/valory-xyz/tomte.git@01ecfd5b2b68021bc94b76d9581eb3944bbd41b2"
+tomte_dep_pin = " @ git+https://github.com/valory-xyz/tomte.git@92cb14f4696bf3eba3ceec36e1a915961d5c7992"
 
 [tool.uv.build-backend]
 module-name = ["packages"]
