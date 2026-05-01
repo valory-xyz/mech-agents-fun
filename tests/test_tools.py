@@ -30,6 +30,8 @@ from typing import Any, Dict, List
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 from tests.conftest import run_tool_in_isolated_venv
 from tests.shared_constants import (
     DEFAULT_CALLABLE,
