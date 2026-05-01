@@ -61,12 +61,27 @@ Repository = "https://github.com/valory-xyz/agents-fun-mech"
 [dependency-groups]
 dev = [
     "setuptools>=78.0.1,<79",
-    "tomte[cli, tests]==0.6.5",
+    "tomte[cli, tests] @ git+https://github.com/valory-xyz/tomte.git@54780e1e34d4a5bd908f4ece1fae86437bded2c1",
 ]
 
 [tool.uv]
 default-groups = "all"
 prerelease = "allow"
+
+[tool.tomte]
+# Dev customs are under packages/agents_fun/customs/, agent + service
+# under packages/valory/. Pin packages_paths to the primary first-party
+# author so canonical env vars resolve sensibly.
+packages_paths = "packages/valory"
+# Third-party skills/contracts on disk are synced from mech upstream.
+upstream_pins = ["valory-xyz/mech@v0.31.2"]
+tomte_dep_pin = " @ git+https://github.com/valory-xyz/tomte.git@54780e1e34d4a5bd908f4ece1fae86437bded2c1"
+# Customs are file-form (no per-pkg tests/ dir). The only first-party
+# tests live under tests/; without pinning, auto-discovery picks up
+# upstream `packages/valory/skills/.../tests/` (abstract_round_abci,
+# task_execution) whose handler-log assertions and tendermint-binary
+# deps don't apply downstream.
+pytest_targets = ["tests"]
 
 [tool.uv.build-backend]
 module-name = ["packages"]
