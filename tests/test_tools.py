@@ -29,9 +29,6 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
-
-pytestmark = pytest.mark.integration
-
 from tests.conftest import run_tool_in_isolated_venv
 from tests.shared_constants import (
     DEFAULT_CALLABLE,
@@ -43,6 +40,9 @@ from tests.shared_constants import (
     RESULT_KEY_SUCCESS,
     RESULT_KEY_TOOL,
 )
+
+
+pytestmark = pytest.mark.integration
 
 PACKAGES_DIR = Path(__file__).parent.parent / "packages"
 COMPONENT_YAML_FILENAME = "component.yaml"
