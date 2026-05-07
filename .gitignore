@@ -32,3 +32,6 @@ mech/
 mech_service/
 !/packages/valory/agents
 !/packages/valory/services
+.tomte-tox.ini
+.darglint
+.gitleaks-merged.toml
