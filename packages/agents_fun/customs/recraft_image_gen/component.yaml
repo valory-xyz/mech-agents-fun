@@ -7,13 +7,13 @@ license: Apache-2.0
 aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
   __init__.py: bafybeihzptvbp7cy4m3i2wy7qhva7zqbae2olpzk2cnax6ox5fg6atwrby
-  recraft_image_gen.py: bafybeig4z4tvzwfxbucj3aey6ofh7snyi7wu22eq2fuczqtjvq66tlqq2e
+  recraft_image_gen.py: bafybeigq2qamcscrfwufy4x3qfudehse63q33uhvtgbhfq577zrdmaxrka
 fingerprint_ignore_patterns: []
 entry_point: recraft_image_gen.py
 callable: run
 dependencies:
   pillow:
-    version: ==12.1.1
+    version: ==12.2.0
   open-aea-cli-ipfs:
     version: ==2.2.1
   anthropic:

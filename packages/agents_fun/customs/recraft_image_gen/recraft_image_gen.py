@@ -131,7 +131,7 @@ def _download_image(image_url: str) -> Optional[bytes]:
 
 
 def _process_image_and_upload(image_data: bytes) -> Tuple[Optional[str], Optional[str]]:
-    image = Image.open(BytesIO(image_data))
+    image = Image.open(BytesIO(image_data), formats=("PNG", "JPEG", "WEBP"))
     temp_image_path = f"temp_generated_image_{os.getpid()}.png"
     try:
         image.save(temp_image_path)
