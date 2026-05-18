@@ -7,7 +7,7 @@ license: Apache-2.0
 aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
   __init__.py: bafybeidnpzfuhbztaogflzlzwi7g7oyt2t5pcx6ayl5xuuixsq2nbt3vcu
-  google_image_gen.py: bafybeiebahcz3j3czrv7zku4czz43dyskuw7f3wfze56hzdizxex5aes2y
+  google_image_gen.py: bafybeidq5gcur2fdmsuw44v6dcy56cxnkbtrrmxvpvr6afw5x6yryp2n4y
 fingerprint_ignore_patterns: []
 entry_point: google_image_gen.py
 callable: run
@@ -18,7 +18,7 @@ dependencies:
     version: ==1.17.0
   google-api-core: {}
   pillow:
-    version: ==12.1.1
+    version: ==12.2.0
   open-aea-cli-ipfs:
     version: ==2.2.1
   anthropic:

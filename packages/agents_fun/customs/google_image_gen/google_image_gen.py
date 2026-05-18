@@ -186,7 +186,7 @@ def _save_image_and_upload_to_ipfs(
     """Saves the image data to a temporary file, uploads to IPFS, and cleans up."""
     temp_image_path = f"temp_generated_image_{os.getpid()}.png"
     try:
-        image = Image.open(BytesIO(image_data))
+        image = Image.open(BytesIO(image_data), formats=("PNG", "JPEG", "WEBP"))
         image.save(temp_image_path)
 
         ipfs_tool = IPFSTool()

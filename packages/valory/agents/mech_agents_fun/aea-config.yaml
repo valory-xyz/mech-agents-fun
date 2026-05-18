@@ -50,7 +50,7 @@ skills:
 - valory/transaction_settlement_abci:0.1.0:bafybeigiojqgbi54jhree3sqrzaudbmjxb7y2ete74bbliryi3t7ztwi5q
 - valory/websocket_client:0.1.0:bafybeid6oyycsrvk4duftffs5mrfgmcepibt3qe4om3kfzhwhilfq3ynay
 customs:
-- agents_fun/google_image_gen:0.1.0:bafybeigqpqr7f7phdidh7lcsjmaolwqtai6xo3ziuwldf5csfivrg5bppm
+- agents_fun/google_image_gen:0.1.0:bafybeic7hnwswe3r3e3lbfcacd5m3p474tw7r6234bllxs7pnb6rk5dyxm
 - agents_fun/short_maker:0.1.0:bafybeicffrozhrxb3qng6ffl5x2vdteobifzl7lowmvoajgyx2eeke2ype
 - agents_fun/stability_ai_request:0.1.0:bafybeihndmvigf7vufvwbg24mbdhgbqqlrbuanr6sm5qtoavvmbautsd3e
 default_ledger: ethereum
@@ -108,7 +108,7 @@ dependencies:
   google-genai:
     version: ==1.17.0
   pillow:
-    version: ==12.1.1
+    version: ==12.2.0
   pebble:
     version: ==5.1.3
   google-api-core: {}
