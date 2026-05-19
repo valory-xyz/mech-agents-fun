@@ -54,7 +54,7 @@ jobs:
       - name: Check copyright headers
         run: tomte check-copyright --author valory
       - name: License compatibility check
-        run: tomte tox -e liccheck
+        run: tomte tox -e liccheck-flat
       - name: Check dependencies
         run: tomte tox -e check-dependencies
       - name: Check third-party package hashes match upstream
