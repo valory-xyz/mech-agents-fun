@@ -67,11 +67,14 @@ dev = [
 [tool.uv]
 default-groups = "all"
 prerelease = "allow"
-# OA pulls open-aea-ledger-solana 2.2.6 transitively; its solana<0.34
-# pin conflicts with google-genai's websockets>=13. Solana is never
-# imported (required_ledgers = ethereum + cosmos), so force a solana
-# series with widened websockets. solders bound tracks solana 0.36.x's
-# requires-dist (>=0.23,<0.27).
+# OA 0.21.22 has open-aea-ledger-solana 2.2.6 as a direct (non-optional)
+# dep; its solana<0.34 pin conflicts with google-genai's websockets>=13.
+# Solana is never imported (required_ledgers = ethereum + cosmos), so
+# force a solana series with widened websockets. solders bound tracks
+# solana 0.36.x's requires-dist (>=0.23,<0.27).
+# Note: override-dependencies is uv-only. Plain `pip install -e .` will
+# ignore it and re-resolve the conflict. CI uses tox-uv everywhere, but
+# local installs should go through `uv sync`.
 override-dependencies = [
     "solana>=0.36.0,<0.37.0",
     "solders>=0.23,<0.27",
