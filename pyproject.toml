@@ -11,19 +11,12 @@ readme = "README.md"
 license = "Apache-2.0"
 dependencies = [
     # OA / open-aea / plugins — pinned exactly (framework contract).
-    # NOTE: OA / open-aea cannot move to 0.21.20 / 2.2.3 here yet.
-    # OA 0.21.20 added `open-aea-ledger-solana==2.2.3` as a *direct* dep,
-    # which pulls `solana==0.33.0` → `websockets<12`. The customs use
-    # `google-genai` which hard-pins `websockets>=13`. liccheck's
-    # pkg_resources walk fails the conflict regardless of which side we
-    # override. Holding at 0.21.19 / 2.2.1 until OA moves solana behind
-    # an extra (or we replace google-genai for image / video gen).
-    "open-autonomy[all]==0.21.19",
-    "open-aea-ledger-ethereum==2.2.1",
-    "open-aea-ledger-cosmos==2.2.1",
-    "open-aea-test-autonomy==0.21.19",
-    "open-aea-cli-ipfs==2.2.1",
-    "open-aea-helpers==0.21.19",
+    "open-autonomy[all]==0.21.22",
+    "open-aea-ledger-ethereum==2.2.6",
+    "open-aea-ledger-cosmos==2.2.6",
+    "open-aea-test-autonomy==0.21.22",
+    "open-aea-cli-ipfs==2.2.6",
+    "open-aea-helpers==0.21.22",
     # Agent-repo (app) deps — exact pins per David's #436 rule.
     # Ranges are reserved for framework/lib repos; agent repos pin
     # everything non-OA throughout.
@@ -74,6 +67,18 @@ dev = [
 [tool.uv]
 default-groups = "all"
 prerelease = "allow"
+# OA 0.21.22 has open-aea-ledger-solana 2.2.6 as a direct (non-optional)
+# dep; its solana<0.34 pin conflicts with google-genai's websockets>=13.
+# Solana is never imported (required_ledgers = ethereum + cosmos), so
+# force a solana series with widened websockets. solders bound tracks
+# solana 0.36.x's requires-dist (>=0.23,<0.27).
+# Note: override-dependencies is uv-only. Plain `pip install -e .` will
+# ignore it and re-resolve the conflict. CI uses tox-uv everywhere, but
+# local installs should go through `uv sync`.
+override-dependencies = [
+    "solana>=0.36.0,<0.37.0",
+    "solders>=0.23,<0.27",
+]
 
 [tool.tomte]
 # Dev customs are under packages/agents_fun/customs/, agent + service
@@ -81,7 +86,7 @@ prerelease = "allow"
 # author so canonical env vars resolve sensibly.
 packages_paths = "packages/valory"
 # Third-party skills/contracts on disk are synced from mech upstream.
-upstream_pins = ["valory-xyz/mech@v0.32.0"]
+upstream_pins = ["valory-xyz/mech@v0.33.0"]
 tomte_dep_pin = " @ git+https://github.com/valory-xyz/tomte.git@v0.7.0"
 # Customs are file-form (no per-pkg tests/ dir). The only first-party
 # tests live under tests/; without pinning, auto-discovery picks up
