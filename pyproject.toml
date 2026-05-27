@@ -40,7 +40,6 @@ dependencies = [
     "pebble==5.1.3",
     "pyyaml<7.0.0,>=6.0.0",
     "python-dotenv==0.21.1",
-    "pip>=24.0",
     # Custom-tool AI / media deps — exact pins per agent-repo rule
     # (each tool is configured against a specific version).
     "openai==1.82.0",
