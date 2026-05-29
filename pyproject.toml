@@ -11,12 +11,12 @@ readme = "README.md"
 license = "Apache-2.0"
 dependencies = [
     # OA / open-aea / plugins — pinned exactly (framework contract).
-    "open-autonomy[all]==0.21.22",
-    "open-aea-ledger-ethereum==2.2.6",
-    "open-aea-ledger-cosmos==2.2.6",
-    "open-aea-test-autonomy==0.21.22",
-    "open-aea-cli-ipfs==2.2.6",
-    "open-aea-helpers==0.21.22",
+    "open-autonomy[all]==0.21.23",
+    "open-aea-ledger-ethereum==2.2.7",
+    "open-aea-ledger-cosmos==2.2.7",
+    "open-aea-test-autonomy==0.21.23",
+    "open-aea-cli-ipfs==2.2.7",
+    "open-aea-helpers==0.21.23",
     # Agent-repo (app) deps — exact pins per David's #436 rule.
     # Ranges are reserved for framework/lib repos; agent repos pin
     # everything non-OA throughout.
@@ -66,7 +66,7 @@ dev = [
 [tool.uv]
 default-groups = "all"
 prerelease = "allow"
-# OA 0.21.22 has open-aea-ledger-solana 2.2.6 as a direct (non-optional)
+# OA 0.21.23 has open-aea-ledger-solana 2.2.7 as a direct (non-optional)
 # dep; its solana<0.34 pin conflicts with google-genai's websockets>=13.
 # Solana is never imported (required_ledgers = ethereum + cosmos), so
 # force a solana series with widened websockets. solders bound tracks
@@ -85,7 +85,7 @@ override-dependencies = [
 # author so canonical env vars resolve sensibly.
 packages_paths = "packages/valory"
 # Third-party skills/contracts on disk are synced from mech upstream.
-upstream_pins = ["valory-xyz/mech@v0.33.0"]
+upstream_pins = ["valory-xyz/mech@v0.33.1"]
 tomte_dep_pin = " @ git+https://github.com/valory-xyz/tomte.git@v0.7.0"
 # Customs are file-form (no per-pkg tests/ dir). The only first-party
 # tests live under tests/; without pinning, auto-discovery picks up
