@@ -56,6 +56,9 @@ dependencies = [
     # under mech v0.34.4 / OA 0.21.26) imports peewee at module level.
     # Version tracks the connection's own dependencies pin.
     "peewee==3.17.5",
+    # task_submission_abci's predict_api_events_client uses eth_utils.keccak
+    # for the batch idempotency hash. Version tracks the skill.yaml pin.
+    "eth-utils==6.0.0",
 ]
 
 [project.urls]

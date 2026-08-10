@@ -1,12 +1,12 @@
 {
     "dev": {
-        "custom/agents_fun/short_maker/0.1.0": "bafybeig2hdezpu3ew4kbz5kilfsf2m7cndikfzsxvnznots3rwcu67m4ca",
+        "custom/agents_fun/short_maker/0.1.0": "bafybeialdibotrsz7l64346iwgczuaqhk3y7ge6ozyzadpgxvhswz7gwpa",
         "custom/agents_fun/stability_ai_request/0.1.0": "bafybeihndmvigf7vufvwbg24mbdhgbqqlrbuanr6sm5qtoavvmbautsd3e",
-        "custom/agents_fun/google_image_gen/0.1.0": "bafybeiarpjybk6zevd7jzsldhjhrmi2vcz44b2jzictmoapa4y72ttxexi",
-        "custom/agents_fun/recraft_image_gen/0.1.0": "bafybeialkg7tddvu7bau443f6hio2twypiginzlcaxaoe3dgj4ncfd4zye",
-        "custom/agents_fun/google_video_gen/0.1.0": "bafybeiazdvogvsowail7iqnq6uxzisf4uikljbj6szmsm4znoqwmflwz4a",
-        "agent/valory/mech_agents_fun/0.1.0": "bafybeieldzskcwndpf7gzdfamim7pll66ksku6pfbgq4xwokvei2q63eiq",
-        "service/valory/mech_agents_fun/0.1.0": "bafybeihyvwaxyrkuohru7wkbfykbmioief5vfruu3ynslkg5ymv3gjiz2u"
+        "custom/agents_fun/google_image_gen/0.1.0": "bafybeiczdxwwottbwphberpnrlv6abp3g4ccin265qnkkd3j56h3rjvrmi",
+        "custom/agents_fun/recraft_image_gen/0.1.0": "bafybeiat4d33kqap7pmrh54ckj5dsdamxbxsyttrgocejqiluitfphyj6e",
+        "custom/agents_fun/google_video_gen/0.1.0": "bafybeifqegajjjjfcxc6yc6jebl3x4dchcxlpw2o5kxxtadtguu2hipy2e",
+        "agent/valory/mech_agents_fun/0.1.0": "bafybeihyalgkvsy7htajj4oef6p2luzjvhgqt6pzlmqc27sq5zleovm6oe",
+        "service/valory/mech_agents_fun/0.1.0": "bafybeigm2fvlvxcirbawcdj5or2fmi6eqnagsknx4wgermnhayf63gt7vm"
     },
     "third_party": {
         "protocol/valory/acn/1.1.0": "bafybeiea66z4k6cgcazxd6qzvnkllulyjzbnxufkoenge7qzh4qfogrvoa",

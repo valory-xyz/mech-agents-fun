@@ -50,8 +50,8 @@ skills:
 - valory/transaction_settlement_abci:0.1.0:bafybeihizaapype5sz7vlosms3nfo6jzfj4ujycuf5uthviq2otvmw6f6m
 - valory/websocket_client:0.1.0:bafybeid6oyycsrvk4duftffs5mrfgmcepibt3qe4om3kfzhwhilfq3ynay
 customs:
-- agents_fun/google_image_gen:0.1.0:bafybeiarpjybk6zevd7jzsldhjhrmi2vcz44b2jzictmoapa4y72ttxexi
-- agents_fun/short_maker:0.1.0:bafybeig2hdezpu3ew4kbz5kilfsf2m7cndikfzsxvnznots3rwcu67m4ca
+- agents_fun/google_image_gen:0.1.0:bafybeiczdxwwottbwphberpnrlv6abp3g4ccin265qnkkd3j56h3rjvrmi
+- agents_fun/short_maker:0.1.0:bafybeialdibotrsz7l64346iwgczuaqhk3y7ge6ozyzadpgxvhswz7gwpa
 - agents_fun/stability_ai_request:0.1.0:bafybeihndmvigf7vufvwbg24mbdhgbqqlrbuanr6sm5qtoavvmbautsd3e
 default_ledger: ethereum
 required_ledgers:
@@ -88,7 +88,7 @@ dependencies:
   hypothesis:
     version: ==6.21.6
   open-aea-ledger-ethereum:
-    version: ==2.2.1
+    version: ==2.2.9
   openai:
     version: ==1.82.0
   replicate:
@@ -113,7 +113,7 @@ dependencies:
     version: ==5.1.3
   google-api-core: {}
   open-aea-cli-ipfs:
-    version: ==2.2.1
+    version: ==2.2.9
 default_connection: null
 ---
 public_id: valory/websocket_client:0.1.0:bafybeiexove4oqyhoae5xmk2hilskthosov5imdp65olpgj3cfrepbouyy
