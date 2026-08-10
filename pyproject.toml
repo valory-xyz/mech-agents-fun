@@ -11,12 +11,12 @@ readme = "README.md"
 license = "Apache-2.0"
 dependencies = [
     # OA / open-aea / plugins — pinned exactly (framework contract).
-    "open-autonomy[all]==0.21.23",
-    "open-aea-ledger-ethereum==2.2.7",
-    "open-aea-ledger-cosmos==2.2.7",
-    "open-aea-test-autonomy==0.21.23",
-    "open-aea-cli-ipfs==2.2.7",
-    "open-aea-helpers==0.21.23",
+    "open-autonomy[all]==0.21.26",
+    "open-aea-ledger-ethereum==2.2.9",
+    "open-aea-ledger-cosmos==2.2.9",
+    "open-aea-test-autonomy==0.21.26",
+    "open-aea-cli-ipfs==2.2.9",
+    "open-aea-helpers==0.21.26",
     # Agent-repo (app) deps — exact pins per David's #436 rule.
     # Ranges are reserved for framework/lib repos; agent repos pin
     # everything non-OA throughout.
@@ -52,6 +52,13 @@ dependencies = [
     "tiktoken==0.12.0",
     "httpx==0.28.1",
     "pillow==12.2.0",
+    # kv_store connection (pulled in as a transitive of delivery_rate_abci
+    # under mech v0.34.4 / OA 0.21.26) imports peewee at module level.
+    # Version tracks the connection's own dependencies pin.
+    "peewee==3.17.5",
+    # task_submission_abci's predict_api_events_client uses eth_utils.keccak
+    # for the batch idempotency hash. Version tracks the skill.yaml pin.
+    "eth-utils==6.0.0",
 ]
 
 [project.urls]
@@ -66,7 +73,7 @@ dev = [
 [tool.uv]
 default-groups = "all"
 prerelease = "allow"
-# OA 0.21.23 has open-aea-ledger-solana 2.2.7 as a direct (non-optional)
+# OA 0.21.26 has open-aea-ledger-solana 2.2.9 as a direct (non-optional)
 # dep; its solana<0.34 pin conflicts with google-genai's websockets>=13.
 # Solana is never imported (required_ledgers = ethereum + cosmos), so
 # force a solana series with widened websockets. solders bound tracks
@@ -77,6 +84,10 @@ prerelease = "allow"
 override-dependencies = [
     "solana>=0.36.0,<0.37.0",
     "solders>=0.23,<0.27",
+    # cffi 2.1.0+ (transitive via cryptography << open-aea-ledger-solana)
+    # reports its license as MIT-0, which tomte's PARANOID liccheck rejects.
+    # Constrain to the previous minor until the tomte allowlist covers MIT-0.
+    "cffi<2.1",
 ]
 
 [tool.tomte]
@@ -85,7 +96,7 @@ override-dependencies = [
 # author so canonical env vars resolve sensibly.
 packages_paths = "packages/valory"
 # Third-party skills/contracts on disk are synced from mech upstream.
-upstream_pins = ["valory-xyz/mech@v0.33.1"]
+upstream_pins = ["valory-xyz/mech@v0.34.4"]
 tomte_dep_pin = " @ git+https://github.com/valory-xyz/tomte.git@v0.7.0"
 # Customs are file-form (no per-pkg tests/ dir). The only first-party
 # tests live under tests/; without pinning, auto-discovery picks up
