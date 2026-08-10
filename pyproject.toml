@@ -52,6 +52,10 @@ dependencies = [
     "tiktoken==0.12.0",
     "httpx==0.28.1",
     "pillow==12.2.0",
+    # kv_store connection (pulled in as a transitive of delivery_rate_abci
+    # under mech v0.34.4 / OA 0.21.26) imports peewee at module level.
+    # Version tracks the connection's own dependencies pin.
+    "peewee==3.17.5",
 ]
 
 [project.urls]
@@ -77,6 +81,10 @@ prerelease = "allow"
 override-dependencies = [
     "solana>=0.36.0,<0.37.0",
     "solders>=0.23,<0.27",
+    # cffi 2.1.0+ (transitive via cryptography << open-aea-ledger-solana)
+    # reports its license as MIT-0, which tomte's PARANOID liccheck rejects.
+    # Constrain to the previous minor until the tomte allowlist covers MIT-0.
+    "cffi<2.1",
 ]
 
 [tool.tomte]
