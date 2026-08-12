@@ -130,8 +130,6 @@ dependencies:
     version: <7,>=5
   py-ecc:
     version: <10,>=8
-  pytest:
-    version: <10,>=8.2
   pytest-asyncio:
     version: '>=1.3'
   replicate:
