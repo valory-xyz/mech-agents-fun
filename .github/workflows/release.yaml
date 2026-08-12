@@ -46,6 +46,7 @@ jobs:
         with:
             image: valory/open-autonomy-user:0.21.26
             options: -v ${{ github.workspace }}:/work
+            shell: bash
             run: |
               echo "Setting Tag Images"
               cd /work
