@@ -11,12 +11,12 @@ readme = "README.md"
 license = "Apache-2.0"
 dependencies = [
     # OA / open-aea / plugins — pinned exactly (framework contract).
-    "open-autonomy[all]==0.21.26",
+    "open-autonomy[all]==0.21.27",
     "open-aea-ledger-ethereum==2.2.9",
     "open-aea-ledger-cosmos==2.2.9",
-    "open-aea-test-autonomy==0.21.26",
+    "open-aea-test-autonomy==0.21.27",
     "open-aea-cli-ipfs==2.2.9",
-    "open-aea-helpers==0.21.26",
+    "open-aea-helpers==0.21.27",
     # Agent-repo (app) deps — exact pins per David's #436 rule.
     # Ranges are reserved for framework/lib repos; agent repos pin
     # everything non-OA throughout.
@@ -47,6 +47,8 @@ dependencies = [
     "moviepy==1.0.3",
     "anthropic==0.21.3",
     "google-api-python-client==2.130.0",
+    "google-api-core>=2.20.0,<3",
+    "google-genai==1.17.0",
     "tiktoken==0.12.0",
     "httpx==0.28.1",
     "pydantic>=2.0.0,<3.0.0",
@@ -72,20 +74,14 @@ dev = [
 [tool.uv]
 default-groups = "all"
 prerelease = "allow"
-# OA 0.21.26 has open-aea-ledger-solana 2.2.9 as a direct (non-optional)
-# dep; its solana<0.34 pin conflicts with google-genai's websockets>=13.
-# Solana is never imported (required_ledgers = ethereum + cosmos), so
-# force a solana series with widened websockets. solders bound tracks
-# solana 0.36.x's requires-dist (>=0.23,<0.27).
-# Note: override-dependencies is uv-only. Plain `pip install -e .` will
-# ignore it and re-resolve the conflict. CI uses tox-uv everywhere, but
-# local installs should go through `uv sync`.
+# OA 0.21.27 moved open-aea-ledger-solana behind an optional [solana]
+# extra. We don't declare that extra, so the solana chain (and its
+# solana<0.34 → websockets<12 constraint) never gets pulled. The
+# earlier override-dependencies workaround is no longer needed.
 override-dependencies = [
-    "solana>=0.36.0,<0.37.0",
-    "solders>=0.23,<0.27",
-    # cffi 2.1.0+ (transitive via cryptography << open-aea-ledger-solana)
-    # reports its license as MIT-0, which tomte's PARANOID liccheck rejects.
-    # Constrain to the previous minor until the tomte allowlist covers MIT-0.
+    # cffi 2.1.0+ (transitive via cryptography) reports its license as
+    # MIT-0, which tomte's PARANOID liccheck rejects. Constrain to the
+    # previous minor until the tomte allowlist covers MIT-0.
     "cffi<2.1",
 ]
 
