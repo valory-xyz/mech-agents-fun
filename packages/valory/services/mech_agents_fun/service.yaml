@@ -414,3 +414,8 @@ type: skill
     params:
       args:
         use_polling: ${USE_POLLING:str:false}
+---
+public_id: valory/kv_store:0.1.0
+type: connection
+config:
+  store_path: ${STORE_PATH:str:/data}
