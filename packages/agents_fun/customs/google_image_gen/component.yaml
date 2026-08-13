@@ -7,7 +7,7 @@ license: Apache-2.0
 aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
   __init__.py: bafybeidnpzfuhbztaogflzlzwi7g7oyt2t5pcx6ayl5xuuixsq2nbt3vcu
-  google_image_gen.py: bafybeicbc5bfbh6ov2o7h45tffut274kupi7go46g5rppx42cgtf4ac2ci
+  google_image_gen.py: bafybeigevajo3pyzwr2syowzalfb54gwdr57hlrdtse77zljvrljkjcewy
 fingerprint_ignore_patterns: []
 entry_point: google_image_gen.py
 callable: run

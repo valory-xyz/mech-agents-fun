@@ -7,7 +7,7 @@ license: Apache-2.0
 fingerprint:
   README.md: bafybeif7ia4jdlazy6745ke2k2x5yoqlwsgwr6sbztbgqtwvs3ndm2p7ba
 fingerprint_ignore_patterns: []
-agent: valory/mech_agents_fun:0.1.0:bafybeifhiza4ezzxb4hfmibobmgckgblaymddweatfs5b2hqdcueortj3m
+agent: valory/mech_agents_fun:0.1.0:bafybeih7xgstkns5lpfbmxmh4y5iqkuw6klzqza3gf3wyxvgsci4wx22g4
 number_of_agents: 1
 deployment:
   agent:
@@ -414,3 +414,8 @@ type: skill
     params:
       args:
         use_polling: ${USE_POLLING:str:false}
+---
+public_id: valory/kv_store:0.1.0
+type: connection
+config:
+  store_path: ${STORE_PATH:str:/data}
