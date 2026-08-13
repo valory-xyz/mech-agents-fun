@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------------------
 #
-#   Copyright 2025 Valory AG
+#   Copyright 2023-2024 Valory AG
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -16,13 +16,5 @@
 #   limitations under the License.
 #
 # ------------------------------------------------------------------------------
-"""google_image_gen tool. Stubbed: google-genai removed."""
 
-from typing import Any, Dict, Optional, Tuple
-
-MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
-
-
-def run(**kwargs: Any) -> MechResponse:
-    """Stubbed out: google-genai removed."""
-    raise NotImplementedError("google-genai removed")
+"""This module contains the Superforcaster tool."""
