@@ -6,7 +6,7 @@ description: A tool to generate shortvideos from text using Google Generative AI
 license: Apache-2.0
 aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
-  google_video_gen.py: bafybeih3u6f2znqzjqus6utg7zognsle6bayuwxprta3tvf6a2qesr42t4
+  google_video_gen.py: bafybeiholgy3nxptav6pumetnbnewiceqznjpiomdsgaxlhwdx7vowyepq
 fingerprint_ignore_patterns: []
 entry_point: google_video_gen.py
 callable: run
