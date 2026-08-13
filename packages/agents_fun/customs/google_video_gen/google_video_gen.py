@@ -22,6 +22,8 @@ from typing import Any, Dict, Optional, Tuple
 
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
+ALLOWED_TOOLS = ["google_video_gen"]
+
 
 def run(**kwargs: Any) -> MechResponse:
     """Stubbed out: google-genai removed."""
