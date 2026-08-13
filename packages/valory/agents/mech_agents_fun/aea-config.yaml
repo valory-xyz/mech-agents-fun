@@ -50,9 +50,10 @@ skills:
 - valory/transaction_settlement_abci:0.1.0:bafybeihizaapype5sz7vlosms3nfo6jzfj4ujycuf5uthviq2otvmw6f6m
 - valory/websocket_client:0.1.0:bafybeiht2ify5vkseeulutzjwkw5vcmhcwtun2o5ehn6hya6uz4eanua2m
 customs:
-- agents_fun/google_image_gen:0.1.0:bafybeiczdxwwottbwphberpnrlv6abp3g4ccin265qnkkd3j56h3rjvrmi
+- agents_fun/google_image_gen:0.1.0:bafybeibkts5sjnrxysabqjznay3bm6hj5hzfvwopvwvb2nbjxjv2ow6rmu
 - agents_fun/short_maker:0.1.0:bafybeialdibotrsz7l64346iwgczuaqhk3y7ge6ozyzadpgxvhswz7gwpa
 - agents_fun/stability_ai_request:0.1.0:bafybeihndmvigf7vufvwbg24mbdhgbqqlrbuanr6sm5qtoavvmbautsd3e
+- valory/superforcaster:0.1.0:bafybeidwdixsstuexhtgrzhl5tpcx2ezkvb2oace62z32ty52z5wdradna
 default_ledger: ethereum
 required_ledgers:
 - ethereum
@@ -93,11 +94,8 @@ dependencies:
     version: <1.5.0,>=1.4.0
   ecdsa:
     version: '>=0.15'
-  google-api-core: {}
   google-api-python-client:
     version: ==2.130.0
-  google-genai:
-    version: ==1.17.0
   grpcio:
     version: ==1.78.0
   httpx:
@@ -130,6 +128,8 @@ dependencies:
     version: <7,>=5
   py-ecc:
     version: <10,>=8
+  pydantic:
+    version: '>=2.0.0,<3.0.0'
   pytest:
     version: <10,>=8.2
   pytest-asyncio:

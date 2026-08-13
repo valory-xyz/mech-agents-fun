@@ -47,10 +47,9 @@ dependencies = [
     "moviepy==1.0.3",
     "anthropic==0.21.3",
     "google-api-python-client==2.130.0",
-    "google-api-core>=2.20.0,<3",
-    "google-genai==1.17.0",
     "tiktoken==0.12.0",
     "httpx==0.28.1",
+    "pydantic>=2.0.0,<3.0.0",
     "pillow==12.2.0",
     # kv_store connection (pulled in as a transitive of delivery_rate_abci
     # under mech v0.34.4 / OA 0.21.26) imports peewee at module level.
