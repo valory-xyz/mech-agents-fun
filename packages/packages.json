@@ -5,9 +5,9 @@
         "custom/agents_fun/google_image_gen/0.1.0": "bafybeibkts5sjnrxysabqjznay3bm6hj5hzfvwopvwvb2nbjxjv2ow6rmu",
         "custom/agents_fun/recraft_image_gen/0.1.0": "bafybeiat4d33kqap7pmrh54ckj5dsdamxbxsyttrgocejqiluitfphyj6e",
         "custom/agents_fun/google_video_gen/0.1.0": "bafybeid5joxmshtizrlflhepnym25gi6totyidywqalictudmwgmwionuy",
-        "custom/valory/superforcaster/0.1.0": "bafybeiav3xhxrpyzyd3f4l5jacz7v4ryo7i5bhd67dgbbg2ujihz2aqhte",
-        "agent/valory/mech_agents_fun/0.1.0": "bafybeie546rwj3vg6ee7y2h7hfv7zefzpalqd2jt5xmhnl2rxnnicpi334",
-        "service/valory/mech_agents_fun/0.1.0": "bafybeicswdpqazcv7wazqmw4pin7szqov5advn3hhczdmhcjeafczsmfgq"
+        "custom/valory/superforcaster/0.1.0": "bafybeidwdixsstuexhtgrzhl5tpcx2ezkvb2oace62z32ty52z5wdradna",
+        "agent/valory/mech_agents_fun/0.1.0": "bafybeibmwfdofl4trjd7cqxzgmdwwne35hfikw4d6phduxox4omfic3vui",
+        "service/valory/mech_agents_fun/0.1.0": "bafybeiaxeavneb3jba454c2gq2m6lkqrgxxmxgaqanq7vrlhlbfumfimyq"
     },
     "third_party": {
         "protocol/valory/acn/1.1.0": "bafybeiea66z4k6cgcazxd6qzvnkllulyjzbnxufkoenge7qzh4qfogrvoa",
