@@ -14,9 +14,9 @@ dependencies = [
     "open-autonomy[all]==0.21.27",
     "open-aea-ledger-ethereum==2.2.9",
     "open-aea-ledger-cosmos==2.2.9",
-    "open-aea-test-autonomy==0.21.26",
+    "open-aea-test-autonomy==0.21.27",
     "open-aea-cli-ipfs==2.2.9",
-    "open-aea-helpers==0.21.26",
+    "open-aea-helpers==0.21.27",
     # Agent-repo (app) deps — exact pins per David's #436 rule.
     # Ranges are reserved for framework/lib repos; agent repos pin
     # everything non-OA throughout.
