@@ -6,8 +6,8 @@
         "custom/agents_fun/recraft_image_gen/0.1.0": "bafybeiat4d33kqap7pmrh54ckj5dsdamxbxsyttrgocejqiluitfphyj6e",
         "custom/agents_fun/google_video_gen/0.1.0": "bafybeifqegajjjjfcxc6yc6jebl3x4dchcxlpw2o5kxxtadtguu2hipy2e",
         "custom/valory/superforcaster/0.1.0": "bafybeidwdixsstuexhtgrzhl5tpcx2ezkvb2oace62z32ty52z5wdradna",
-        "agent/valory/mech_agents_fun/0.1.0": "bafybeialwz2ymre5v2y263umrud7ovd4up3aila7ha5bvaxqqs4yxrewpa",
-        "service/valory/mech_agents_fun/0.1.0": "bafybeihnuvxjwhfepcdgbnlwey2cjsmcsagxnwjuhkul32hllvxhbzz5ve"
+        "agent/valory/mech_agents_fun/0.1.0": "bafybeie4qnvxeoyflosg3lxsjrvuv6w5e5q2kpw7ebuk5lxbacfyyl7s44",
+        "service/valory/mech_agents_fun/0.1.0": "bafybeihe7nybdexmtzksv5natqcgsuh7sostigmg7bqexyb6hsmojf7se4"
     },
     "third_party": {
         "protocol/valory/acn/1.1.0": "bafybeiea66z4k6cgcazxd6qzvnkllulyjzbnxufkoenge7qzh4qfogrvoa",
@@ -49,8 +49,8 @@
         "skill/valory/reset_pause_abci/0.1.0": "bafybeifrnmlscfiki7wojs6zasppefupd2wkjyq6orhdllfppjud7isrxi",
         "skill/valory/termination_abci/0.1.0": "bafybeih6sa2ttcvvjk7rcfn7ure2ws23kcfufssb4qmluzcfvednkfpvoi",
         "skill/valory/delivery_rate_abci/0.1.0": "bafybeifjiazvf3qhr2264i55u4tlvmyf6ztgak2ndqolujt4kw6jiy7l3m",
-        "skill/valory/mech_abci/0.1.0": "bafybeidkugsxm66kr6vguonbpt2idh5anqgnc6mvakq452g57fi27t4ere",
-        "skill/valory/task_execution/0.1.0": "bafybeidkfnjo25dkytddterwbfrjv4bxr7tou6lnhzn4dbqhpfm7z34api",
-        "skill/valory/task_submission_abci/0.1.0": "bafybeifvlavnxhbvs6rnajxt7qh5jkekt7ja2vlrowm4qffltqzlqxhvsu"
+        "skill/valory/mech_abci/0.1.0": "bafybeigkvvpevbvp5zkxmbbpgsf7o3cii6hqr5hbt2fohhqcrfextq5l3q",
+        "skill/valory/task_execution/0.1.0": "bafybeiflwtm6qzkadeuvbjmja3zfkjbl3lzwujfpwypz5aagp5gl53hine",
+        "skill/valory/task_submission_abci/0.1.0": "bafybeihph32hjedwitushmrul4cck2ggcu2qbwied4hrgovsc2al4k2yae"
     }
 }
