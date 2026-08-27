@@ -7,7 +7,7 @@ license: Apache-2.0
 fingerprint:
   README.md: bafybeif7ia4jdlazy6745ke2k2x5yoqlwsgwr6sbztbgqtwvs3ndm2p7ba
 fingerprint_ignore_patterns: []
-agent: valory/mech_agents_fun:0.1.0:bafybeie4qnvxeoyflosg3lxsjrvuv6w5e5q2kpw7ebuk5lxbacfyyl7s44
+agent: valory/mech_agents_fun:0.1.0:bafybeifdvw63h6a5mfy7iwolt5ahloxo26vkpgmzcozkj7l3ayjjejzpla
 number_of_agents: 1
 deployment:
   agent:
@@ -69,6 +69,12 @@ type: skill
         mech_staking_instance_address: ${MECH_STAKING_INSTANCE_ADDRESS:str:0x0000000000000000000000000000000000000000}
         service_owner_share: ${SERVICE_SHARE:int:0}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
+        use_offchain: ${USE_OFFCHAIN:bool:false}
+        predict_api_events_url: ${PREDICT_API_EVENTS_URL:str:https://mpp.autonolas.tech/mech/events}
+        predict_api_events_timeout_seconds: ${PREDICT_API_EVENTS_TIMEOUT_SECONDS:float:5.0}
+        mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
+        mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
+        mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 1:
   models:
     params:
@@ -108,6 +114,12 @@ type: skill
         mech_staking_instance_address: ${MECH_STAKING_INSTANCE_ADDRESS:str:0x0000000000000000000000000000000000000000}
         service_owner_share: ${SERVICE_SHARE:int:0}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
+        use_offchain: ${USE_OFFCHAIN:bool:false}
+        predict_api_events_url: ${PREDICT_API_EVENTS_URL:str:https://mpp.autonolas.tech/mech/events}
+        predict_api_events_timeout_seconds: ${PREDICT_API_EVENTS_TIMEOUT_SECONDS:float:5.0}
+        mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
+        mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
+        mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 2:
   models:
     params:
@@ -147,6 +159,12 @@ type: skill
         mech_staking_instance_address: ${MECH_STAKING_INSTANCE_ADDRESS:str:0x0000000000000000000000000000000000000000}
         service_owner_share: ${SERVICE_SHARE:int:0}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
+        use_offchain: ${USE_OFFCHAIN:bool:false}
+        predict_api_events_url: ${PREDICT_API_EVENTS_URL:str:https://mpp.autonolas.tech/mech/events}
+        predict_api_events_timeout_seconds: ${PREDICT_API_EVENTS_TIMEOUT_SECONDS:float:5.0}
+        mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
+        mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
+        mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 3:
   models:
     params:
@@ -186,6 +204,12 @@ type: skill
         mech_staking_instance_address: ${MECH_STAKING_INSTANCE_ADDRESS:str:0x0000000000000000000000000000000000000000}
         service_owner_share: ${SERVICE_SHARE:int:0}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
+        use_offchain: ${USE_OFFCHAIN:bool:false}
+        predict_api_events_url: ${PREDICT_API_EVENTS_URL:str:https://mpp.autonolas.tech/mech/events}
+        predict_api_events_timeout_seconds: ${PREDICT_API_EVENTS_TIMEOUT_SECONDS:float:5.0}
+        mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
+        mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
+        mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 ---
 public_id: valory/task_execution:0.1.0
 type: skill
@@ -211,6 +235,8 @@ type: skill
         polygon_ledger_rpc: ${POLYGON_LEDGER_RPC_0:str:http://host.docker.internal:8545}
         base_ledger_rpc: ${BASE_LEDGER_RPC_0:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
+        use_offchain: ${USE_OFFCHAIN:bool:false}
+        mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 1:
   models:
     params:
@@ -233,6 +259,8 @@ type: skill
         polygon_ledger_rpc: ${POLYGON_LEDGER_RPC_1:str:http://host.docker.internal:8545}
         base_ledger_rpc: ${BASE_LEDGER_RPC_1:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
+        use_offchain: ${USE_OFFCHAIN:bool:false}
+        mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 2:
   models:
     params:
@@ -255,6 +283,8 @@ type: skill
         polygon_ledger_rpc: ${POLYGON_LEDGER_RPC_2:str:http://host.docker.internal:8545}
         base_ledger_rpc: ${BASE_LEDGER_RPC_2:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
+        use_offchain: ${USE_OFFCHAIN:bool:false}
+        mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 3:
   models:
     params:
@@ -277,6 +307,8 @@ type: skill
         polygon_ledger_rpc: ${POLYGON_LEDGER_RPC_3:str:http://host.docker.internal:8545}
         base_ledger_rpc: ${BASE_LEDGER_RPC_3:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
+        use_offchain: ${USE_OFFCHAIN:bool:false}
+        mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 ---
 public_id: valory/ledger:0.19.0
 type: connection
