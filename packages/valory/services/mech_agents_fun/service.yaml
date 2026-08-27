@@ -7,7 +7,7 @@ license: Apache-2.0
 fingerprint:
   README.md: bafybeif7ia4jdlazy6745ke2k2x5yoqlwsgwr6sbztbgqtwvs3ndm2p7ba
 fingerprint_ignore_patterns: []
-agent: valory/mech_agents_fun:0.1.0:bafybeidkyhjoziucat2kf4gxkhvsumfdcdybl5wbjqfrcqemfkzjhhhms4
+agent: valory/mech_agents_fun:0.1.0:bafybeifdvw63h6a5mfy7iwolt5ahloxo26vkpgmzcozkj7l3ayjjejzpla
 number_of_agents: 1
 deployment:
   agent:
@@ -75,13 +75,6 @@ type: skill
         mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
         mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
-    randomness_api: &id002
-      args:
-        method: ${RANDOMNESS_API_METHOD:str:GET}
-        response_key: ${RANDOMNESS_API_RESPONSE_KEY:str:null}
-        response_type: ${RANDOMNESS_API_RESPONSE_TYPE:str:dict}
-        retries: ${RANDOMNESS_API_RETRIES:int:5}
-        url: ${RANDOMNESS_API_URL:str:https://drand.cloudflare.com/public/latest}
 1:
   models:
     params:
@@ -127,7 +120,6 @@ type: skill
         mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
         mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
-    randomness_api: *id002
 2:
   models:
     params:
@@ -173,7 +165,6 @@ type: skill
         mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
         mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
-    randomness_api: *id002
 3:
   models:
     params:
@@ -219,7 +210,6 @@ type: skill
         mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
         mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
-    randomness_api: *id002
 ---
 public_id: valory/task_execution:0.1.0
 type: skill
@@ -244,7 +234,6 @@ type: skill
         gnosis_ledger_rpc: ${GNOSIS_LEDGER_RPC_0:str:http://host.docker.internal:8545}
         polygon_ledger_rpc: ${POLYGON_LEDGER_RPC_0:str:http://host.docker.internal:8545}
         base_ledger_rpc: ${BASE_LEDGER_RPC_0:str:http://host.docker.internal:8545}
-        optimism_ledger_rpc: ${OPTIMISM_LEDGER_RPC_0:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
         use_offchain: ${USE_OFFCHAIN:bool:false}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
@@ -269,7 +258,6 @@ type: skill
         gnosis_ledger_rpc: ${GNOSIS_LEDGER_RPC_1:str:http://host.docker.internal:8545}
         polygon_ledger_rpc: ${POLYGON_LEDGER_RPC_1:str:http://host.docker.internal:8545}
         base_ledger_rpc: ${BASE_LEDGER_RPC_1:str:http://host.docker.internal:8545}
-        optimism_ledger_rpc: ${OPTIMISM_LEDGER_RPC_1:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
         use_offchain: ${USE_OFFCHAIN:bool:false}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
@@ -294,7 +282,6 @@ type: skill
         gnosis_ledger_rpc: ${GNOSIS_LEDGER_RPC_2:str:http://host.docker.internal:8545}
         polygon_ledger_rpc: ${POLYGON_LEDGER_RPC_2:str:http://host.docker.internal:8545}
         base_ledger_rpc: ${BASE_LEDGER_RPC_2:str:http://host.docker.internal:8545}
-        optimism_ledger_rpc: ${OPTIMISM_LEDGER_RPC_2:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
         use_offchain: ${USE_OFFCHAIN:bool:false}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
@@ -319,7 +306,6 @@ type: skill
         gnosis_ledger_rpc: ${GNOSIS_LEDGER_RPC_3:str:http://host.docker.internal:8545}
         polygon_ledger_rpc: ${POLYGON_LEDGER_RPC_3:str:http://host.docker.internal:8545}
         base_ledger_rpc: ${BASE_LEDGER_RPC_3:str:http://host.docker.internal:8545}
-        optimism_ledger_rpc: ${OPTIMISM_LEDGER_RPC_3:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
         use_offchain: ${USE_OFFCHAIN:bool:false}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}

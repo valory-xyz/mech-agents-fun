@@ -247,13 +247,6 @@ models:
       mech_events_sweep_pending_enabled: ${bool:false}
       mech_events_sweep_max_age_seconds: ${float:3600.0}
       mech_events_chain_id: ${int:0}
-  randomness_api:
-    args:
-      method: ${str:GET}
-      response_key: ${str:null}
-      response_type: ${str:dict}
-      retries: ${int:5}
-      url: ${str:https://drand.cloudflare.com/public/latest}
 ---
 public_id: valory/task_execution:0.1.0
 type: skill
@@ -278,7 +271,6 @@ models:
       gnosis_ledger_rpc: ${str:http://localhost:8545}
       polygon_ledger_rpc: ${str:http://localhost:8545}
       base_ledger_rpc: ${str:http://localhost:8545}
-      optimism_ledger_rpc: ${str:http://localhost:8545}
       use_offchain: ${bool:false}
       mech_events_chain_id: ${int:0}
 ---
