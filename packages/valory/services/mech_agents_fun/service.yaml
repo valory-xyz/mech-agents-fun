@@ -7,7 +7,7 @@ license: Apache-2.0
 fingerprint:
   README.md: bafybeif7ia4jdlazy6745ke2k2x5yoqlwsgwr6sbztbgqtwvs3ndm2p7ba
 fingerprint_ignore_patterns: []
-agent: valory/mech_agents_fun:0.1.0:bafybeigt7jyuhyvjqds4gymmrg7qviznckhpuxw7bh4sflmvdxjo6lprji
+agent: valory/mech_agents_fun:0.1.0:bafybeifnc677irizvp2klxc4vsihr5eg2hkw4kixec4xow6rbpc3oqgjiq
 number_of_agents: 1
 deployment:
   agent:
@@ -34,6 +34,7 @@ type: skill
         gas_params: ${GAS_PARAMS:dict:{"gas_price":null, "max_fee_per_gas":null, "max_priority_fee_per_gas":null}}
         multisend_address: ${MULTISEND_ADDRESS:str:0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761}
         on_chain_service_id: ${ON_CHAIN_SERVICE_ID:int:null}
+        erc8004_agent_id: ${ERC8004_AGENT_ID:int:null}
         reset_pause_duration: ${RESET_PAUSE_DURATION:int:10}
         round_timeout_seconds: ${ROUND_TIMEOUT:float:150.0}
         use_polling: ${USE_POLLING:bool:false}
@@ -82,6 +83,7 @@ type: skill
         gas_params: ${GAS_PARAMS:dict:{"gas_price":null, "max_fee_per_gas":null, "max_priority_fee_per_gas":null}}
         multisend_address: ${MULTISEND_ADDRESS:str:0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761}
         on_chain_service_id: ${ON_CHAIN_SERVICE_ID:int:null}
+        erc8004_agent_id: ${ERC8004_AGENT_ID:int:null}
         reset_pause_duration: ${RESET_PAUSE_DURATION:int:10}
         manual_gas_limit: ${MANUAL_GAS_LIMIT:int:1000000}
         round_timeout_seconds: ${ROUND_TIMEOUT:float:150.0}
@@ -127,6 +129,7 @@ type: skill
         gas_params: ${GAS_PARAMS:dict:{"gas_price":null, "max_fee_per_gas":null, "max_priority_fee_per_gas":null}}
         multisend_address: ${MULTISEND_ADDRESS:str:0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761}
         on_chain_service_id: ${ON_CHAIN_SERVICE_ID:int:null}
+        erc8004_agent_id: ${ERC8004_AGENT_ID:int:null}
         reset_pause_duration: ${RESET_PAUSE_DURATION:int:10}
         round_timeout_seconds: ${ROUND_TIMEOUT:float:150.0}
         use_polling: ${USE_POLLING:bool:false}
@@ -172,6 +175,7 @@ type: skill
         gas_params: ${GAS_PARAMS:dict:{"gas_price":null, "max_fee_per_gas":null, "max_priority_fee_per_gas":null}}
         multisend_address: ${MULTISEND_ADDRESS:str:0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761}
         on_chain_service_id: ${ON_CHAIN_SERVICE_ID:int:null}
+        erc8004_agent_id: ${ERC8004_AGENT_ID:int:null}
         reset_pause_duration: ${RESET_PAUSE_DURATION:int:10}
         round_timeout_seconds: ${ROUND_TIMEOUT:float:150.0}
         use_polling: ${USE_POLLING:bool:false}
@@ -236,6 +240,7 @@ type: skill
         base_ledger_rpc: ${BASE_LEDGER_RPC_0:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
         use_offchain: ${USE_OFFCHAIN:bool:false}
+        preimage_retention_enabled: ${PREIMAGE_RETENTION_ENABLED:bool:false}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 1:
   models:
@@ -260,6 +265,7 @@ type: skill
         base_ledger_rpc: ${BASE_LEDGER_RPC_1:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
         use_offchain: ${USE_OFFCHAIN:bool:false}
+        preimage_retention_enabled: ${PREIMAGE_RETENTION_ENABLED:bool:false}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 2:
   models:
@@ -284,6 +290,7 @@ type: skill
         base_ledger_rpc: ${BASE_LEDGER_RPC_2:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
         use_offchain: ${USE_OFFCHAIN:bool:false}
+        preimage_retention_enabled: ${PREIMAGE_RETENTION_ENABLED:bool:false}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 3:
   models:
@@ -308,6 +315,7 @@ type: skill
         base_ledger_rpc: ${BASE_LEDGER_RPC_3:str:http://host.docker.internal:8545}
         default_chain_id: ${DEFAULT_CHAIN_ID:str:base}
         use_offchain: ${USE_OFFCHAIN:bool:false}
+        preimage_retention_enabled: ${PREIMAGE_RETENTION_ENABLED:bool:false}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 ---
 public_id: valory/ledger:0.19.0

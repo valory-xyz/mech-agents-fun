@@ -68,7 +68,7 @@ Repository = "https://github.com/valory-xyz/agents-fun-mech"
 [dependency-groups]
 dev = [
     "setuptools>=78.0.1,<79",
-    "tomte[cli, tests] @ git+https://github.com/valory-xyz/tomte.git@v0.7.0",
+    "tomte[cli, tests]==0.7.3",
 ]
 
 [tool.uv]
@@ -91,8 +91,8 @@ override-dependencies = [
 # author so canonical env vars resolve sensibly.
 packages_paths = "packages/valory"
 # Third-party skills/contracts on disk are synced from mech upstream.
-upstream_pins = ["valory-xyz/mech@v0.35.7"]
-tomte_dep_pin = " @ git+https://github.com/valory-xyz/tomte.git@v0.7.0"
+upstream_pins = ["valory-xyz/mech@v0.35.9"]
+tomte_dep_pin = "==0.7.3"
 # Customs are file-form (no per-pkg tests/ dir). The only first-party
 # tests live under tests/; without pinning, auto-discovery picks up
 # upstream `packages/valory/skills/.../tests/` (abstract_round_abci,
