@@ -193,7 +193,7 @@ def test_a_missing_shot_image_is_skipped_without_calling_replicate(
 
 
 def test_voiceover_is_charged_per_token_and_music_by_compute_time() -> None:
-    """MiniMax is billed per input token (one per character); MusicGen by the A100 time it ran."""
+    """The voice is billed per input token (one per character), the music by the A100 time it ran."""
     recorder = _CostRecorder()
     replicate = MagicMock()
     replicate.run.return_value = "https://r/voice.mp3"
