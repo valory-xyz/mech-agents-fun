@@ -113,7 +113,7 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 api_keys.rotate(service)
                 return execute()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                return str(e), "", None, None, api_keys
+                return str(e), "", None, kwargs.get("counter_callback"), api_keys
 
         mech_response = execute()
         return mech_response
@@ -124,16 +124,7 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
 def record_api_cost(
     counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
 ) -> None:
-    """Report a provider charge that carries no tokens to the mech cost callback.
-
-    The mech adds ``call_cost`` above the call's (zero) token cost to the
-    request's extra cost, so ``model`` only has to name what was charged.
-    A failed report never fails the answer.
-
-    :param counter_callback: the mech cost callback, or None outside the mech.
-    :param model: the model or service that was charged.
-    :param cost_usd: the charge in USD.
-    """
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
     if counter_callback is None or cost_usd <= 0:
         return
     try:

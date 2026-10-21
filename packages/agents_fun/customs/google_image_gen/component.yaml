@@ -7,14 +7,14 @@ license: Apache-2.0
 aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
   __init__.py: bafybeifer6if5lybh6pxlawyj4p54ts2hwalzbqehhsqxit352ozh53oj4
-  google_image_gen.py: bafybeiboyyzx2cgivtitlxarzebstkbry6qkhojc33ssvre3qfm2sffwwy
+  google_image_gen.py: bafybeicwj4rio27toouxpd3tiw4dw3ythx6bimspfdb3gg5mxhqku45n5e
   tests/__init__.py: bafybeic4zowcjvl6jmwuaztfqkmw7jm2lobcrg2qt7mt3kmbuqgzz3lqxu
-  tests/test_google_image_gen.py: bafybeicw5hjaafkawurxrtwqnj54p25yxoj32wzsqtptkhtsf4rbaimdwa
+  tests/test_google_image_gen.py: bafybeidqhaglud6moy6fp2b3g2krptb5xil3kobqxdqb745rwdiufv42si
 fingerprint_ignore_patterns: []
 entry_point: google_image_gen.py
 callable: run
 params:
-  default_model: imagen-4.0-generate-001
+  default_model: gemini-nano-banana-2.1
 dependencies:
   google-genai:
     version: ==2.32.0

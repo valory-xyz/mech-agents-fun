@@ -24,6 +24,7 @@ import logging
 import math
 import os
 import re
+import time
 import wave
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -62,31 +63,32 @@ ALLOWED_TOOLS = [
     "google_video_gen",
 ]
 
-# Gemini 2.0 Flash and the 2.5 TTS preview were retired by Google; these are
-# their documented replacements. Prices are USD per million tokens from
-# ai.google.dev/gemini-api/docs/pricing (TTS output is audio tokens, 25 per
-# second of speech).
+# Prices are USD per million tokens from ai.google.dev/gemini-api/docs/pricing.
+# The script model thinks by default and thinking is billed at the output
+# rate. TTS output is audio tokens, 25 per second of speech; its rates are the
+# introductory ones through 2026-12-31 and the listed ones from 2027-01-01.
 SCRIPT_MODEL = "gemini-3.5-flash-lite"
 SCRIPT_INPUT_USD_PER_M = 0.30
 SCRIPT_OUTPUT_USD_PER_M = 2.50
 TTS_MODEL = "gemini-3.8-flash-lite-tts"
-TTS_INPUT_USD_PER_M = 0.50
-TTS_OUTPUT_USD_PER_M = 6.00
+TTS_RATES_UNTIL_2026 = (0.50, 6.00)
+TTS_RATES_FROM_2027 = (1.00, 12.00)
+TTS_RATE_CHANGE_TS = 1_798_761_600  # 2027-01-01T00:00:00Z
+
+
+def tts_rates(now: float) -> Tuple[float, float]:
+    """USD per million input and output TTS tokens that apply at ``now``.
+
+    :param now: a Unix timestamp.
+    :return: ``(input_per_m, output_per_m)``.
+    """
+    return TTS_RATES_FROM_2027 if now >= TTS_RATE_CHANGE_TS else TTS_RATES_UNTIL_2026
 
 
 def record_api_cost(
     counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
 ) -> None:
-    """Report a provider charge that carries no tokens to the mech cost callback.
-
-    The mech adds ``call_cost`` above the call's (zero) token cost to the
-    request's extra cost, so ``model`` only has to name what was charged.
-    A failed report never fails the answer.
-
-    :param counter_callback: the mech cost callback, or None outside the mech.
-    :param model: the model or service that was charged.
-    :param cost_usd: the charge in USD.
-    """
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
     if counter_callback is None or cost_usd <= 0:
         return
     try:
@@ -106,14 +108,17 @@ def _usage_cost_usd(response: Any, input_per_m: float, output_per_m: float) -> f
 
     :param response: a ``generate_content`` response.
     :param input_per_m: USD per million prompt tokens.
-    :param output_per_m: USD per million output tokens.
+    :param output_per_m: USD per million output (and thinking) tokens.
     :return: the charge, 0 when the response carries no usage.
     """
     usage = getattr(response, "usage_metadata", None)
     if usage is None:
         return 0.0
     prompt_tokens = int(getattr(usage, "prompt_token_count", 0) or 0)
-    output_tokens = int(getattr(usage, "candidates_token_count", 0) or 0)
+    # Thinking tokens are billed at the output rate.
+    output_tokens = int(getattr(usage, "candidates_token_count", 0) or 0) + int(
+        getattr(usage, "thoughts_token_count", 0) or 0
+    )
     return prompt_tokens * input_per_m / 1e6 + output_tokens * output_per_m / 1e6
 
 
@@ -459,7 +464,7 @@ def _generate_audio_with_gemini_tts(
     record_api_cost(
         counter_callback,
         TTS_MODEL,
-        _usage_cost_usd(response, TTS_INPUT_USD_PER_M, TTS_OUTPUT_USD_PER_M),
+        _usage_cost_usd(response, *tts_rates(time.time())),
     )
     return data
 

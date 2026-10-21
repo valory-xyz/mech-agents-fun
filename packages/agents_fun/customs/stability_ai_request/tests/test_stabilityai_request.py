@@ -97,6 +97,20 @@ def test_several_samples_are_charged_each() -> None:
     )
 
 
+def test_an_exception_still_hands_the_callback_back() -> None:
+    """The rotation wrapper's error path returns the callback, not None."""
+    recorder = _CostRecorder()
+    with patch.object(module.requests, "post", side_effect=RuntimeError("down")):
+        result = run(
+            prompt="a cat",
+            tool=TOOL,
+            api_keys=_api_keys(stabilityai="sk"),
+            counter_callback=recorder,
+        )
+    assert result[3] is recorder
+    assert recorder.charges() == []
+
+
 def test_a_failed_call_returns_the_callback_without_a_charge() -> None:
     """A non-200 answer is an error, costs nothing, and still hands the callback back."""
     recorder = _CostRecorder()

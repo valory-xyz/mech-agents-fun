@@ -115,6 +115,38 @@ def test_run_uses_nano_banana_and_reports_the_per_image_price() -> None:
     assert recorder.charges() == [(DEFAULT_MODEL, IMAGE_COST_USD[IMAGE_SIZE])]
 
 
+def test_the_component_default_model_is_the_served_one() -> None:
+    """The mech passes component.yaml's ``default_model`` as ``model``; it must be the current id."""
+    import yaml
+
+    with open(
+        module.__file__.replace("google_image_gen.py", "component.yaml"),
+        encoding="utf-8",
+    ) as handle:
+        component = yaml.safe_load(handle)
+    assert component["params"]["default_model"] == DEFAULT_MODEL
+
+
+def test_run_uses_the_model_the_mech_passes() -> None:
+    """A ``model`` kwarg, as the mech sends it, is the one the request names."""
+    recorder = _CostRecorder()
+    client = _client_returning(_png_bytes())
+    ipfs = MagicMock()
+    ipfs.add.return_value = (None, IMAGE_HASH, None)
+    with (
+        patch.object(module.genai, "Client", return_value=client),
+        patch.object(module, "IPFSTool", return_value=ipfs),
+    ):
+        run(
+            prompt=PROMPT,
+            tool="google_image_gen",
+            model=DEFAULT_MODEL,
+            api_keys=_api_keys(gemini_api_key="gk"),
+            counter_callback=recorder,
+        )
+    assert client.interactions.create.call_args.kwargs["model"] == DEFAULT_MODEL
+
+
 def test_run_charges_nothing_when_no_image_comes_back() -> None:
     """A response without image data is an error and costs the requester nothing."""
     recorder = _CostRecorder()

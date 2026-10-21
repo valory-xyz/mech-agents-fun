@@ -17,7 +17,7 @@
 #
 # ------------------------------------------------------------------------------
 
-"""Tests for the google_video_gen tool: current models and usage-based cost reporting."""
+"""Tests for the google_video_gen tool: models and usage-based cost reporting."""
 
 import json
 from types import SimpleNamespace
@@ -31,10 +31,12 @@ from packages.agents_fun.customs.google_video_gen.google_video_gen import (
     SCRIPT_INPUT_USD_PER_M,
     SCRIPT_MODEL,
     SCRIPT_OUTPUT_USD_PER_M,
-    TTS_INPUT_USD_PER_M,
     TTS_MODEL,
-    TTS_OUTPUT_USD_PER_M,
+    TTS_RATES_FROM_2027,
+    TTS_RATES_UNTIL_2026,
+    TTS_RATE_CHANGE_TS,
     run,
+    tts_rates,
 )
 
 
@@ -63,13 +65,19 @@ def _api_keys(**services: str) -> MagicMock:
 
 PROMPT = "why the sky is blue"
 AUDIO_HASH = "bafyaudiohash"
-SCRIPT_TOKENS = (100, 50)
+SCRIPT_TOKENS = (100, 50, 30)  # prompt, output, thinking
 TTS_TOKENS = (20, 250)
+# A time inside the introductory TTS rate window.
+NOW = TTS_RATE_CHANGE_TS - 1
 
 
-def _usage(prompt_tokens: int, output_tokens: int) -> SimpleNamespace:
+def _usage(
+    prompt_tokens: int, output_tokens: int, thinking_tokens: int = 0
+) -> SimpleNamespace:
     return SimpleNamespace(
-        prompt_token_count=prompt_tokens, candidates_token_count=output_tokens
+        prompt_token_count=prompt_tokens,
+        candidates_token_count=output_tokens,
+        thoughts_token_count=thinking_tokens,
     )
 
 
@@ -96,6 +104,7 @@ def _run(recorder: _CostRecorder, responses: List[Any]) -> Tuple[Any, ...]:
         patch.object(module, "IPFSTool", return_value=ipfs),
         patch.object(module, "wave_file"),
         patch.object(module.os.path, "exists", return_value=False),
+        patch.object(module.time, "time", return_value=NOW),
     ):
         result = run(
             prompt=PROMPT,
@@ -124,13 +133,13 @@ def test_run_calls_the_current_models_and_reports_both_charges() -> None:
         SCRIPT_MODEL == "gemini-3.5-flash-lite"
         and TTS_MODEL == "gemini-3.8-flash-lite-tts"
     )
+    # Thinking tokens are billed at the output rate.
     script_cost = (
         SCRIPT_TOKENS[0] * SCRIPT_INPUT_USD_PER_M
-        + SCRIPT_TOKENS[1] * SCRIPT_OUTPUT_USD_PER_M
+        + (SCRIPT_TOKENS[1] + SCRIPT_TOKENS[2]) * SCRIPT_OUTPUT_USD_PER_M
     ) / 1e6
-    tts_cost = (
-        TTS_TOKENS[0] * TTS_INPUT_USD_PER_M + TTS_TOKENS[1] * TTS_OUTPUT_USD_PER_M
-    ) / 1e6
+    tts_in, tts_out = TTS_RATES_UNTIL_2026
+    tts_cost = (TTS_TOKENS[0] * tts_in + TTS_TOKENS[1] * tts_out) / 1e6
     assert recorder.charges() == pytest.approx(
         [(SCRIPT_MODEL, script_cost), (TTS_MODEL, tts_cost)]
     )
@@ -147,6 +156,12 @@ def test_a_failed_voice_call_leaves_only_the_script_charge() -> None:
     assert "error" in result.lower()
     assert callback is recorder
     assert [model for model, _ in recorder.charges()] == [SCRIPT_MODEL]
+
+
+def test_the_tts_rate_changes_on_new_year_2027() -> None:
+    """The introductory rates apply up to the last second of 2026, the listed ones from then on."""
+    assert tts_rates(TTS_RATE_CHANGE_TS - 1) == TTS_RATES_UNTIL_2026
+    assert tts_rates(TTS_RATE_CHANGE_TS) == TTS_RATES_FROM_2027
 
 
 def test_a_response_without_usage_is_charged_nothing() -> None:

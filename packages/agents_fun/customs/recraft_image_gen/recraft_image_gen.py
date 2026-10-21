@@ -37,25 +37,18 @@ ALLOWED_TOOLS = [
     "recraft-image-gen",
 ]
 
-# Pinned so the charge does not move with Recraft's server-side default.
-RECRAFT_MODEL = "recraftv4_1"
+# Pinned so the charge does not move with Recraft's server-side default, and
+# on V3 because the ``style`` values this tool accepts (``realistic_image``
+# and the other named styles) are defined for V2/V3; V4 takes ``any``.
+RECRAFT_MODEL = "recraftv3"
 # USD per raster image for RECRAFT_MODEL, recraft.ai/docs/api-reference/pricing.
-RECRAFT_COST_PER_IMAGE_USD = 0.035
+RECRAFT_COST_PER_IMAGE_USD = 0.04
 
 
 def record_api_cost(
     counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
 ) -> None:
-    """Report a provider charge that carries no tokens to the mech cost callback.
-
-    The mech adds ``call_cost`` above the call's (zero) token cost to the
-    request's extra cost, so ``model`` only has to name what was charged.
-    A failed report never fails the answer.
-
-    :param counter_callback: the mech cost callback, or None outside the mech.
-    :param model: the model or service that was charged.
-    :param cost_usd: the charge in USD.
-    """
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
     if counter_callback is None or cost_usd <= 0:
         return
     try:

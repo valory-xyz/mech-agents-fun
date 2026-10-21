@@ -54,41 +54,31 @@ REPLICATE_MUSIC_GEN = (
 )
 
 REPLICATE_MINIMAX_TTS = "minimax/speech-02-turbo"
-# Stable Video Diffusion is no longer served on Replicate; Wan 2.2 is the
-# cheapest image-to-video model there (480p, 81 frames at 16 fps).
+# Image-to-video at 480p, 81 frames at 16 fps.
 REPLICATE_WAN_I2V = "wan-video/wan-2.2-i2v-fast"
 
-# gpt-3.5-turbo and DALL-E 3 were retired by OpenAI; these are their current
-# cheapest replacements. gpt-6-luna is priced by the mech per token, so its
-# usage is reported as tokens; the image model is reported as a charge from
-# its usage at the list prices below (developers.openai.com/api/docs/pricing,
-# USD per million tokens: text input, image output).
+# gpt-6-luna is priced by the mech per token, so its usage is reported as
+# tokens. The image model is reported as a charge from its usage at the list
+# prices below (developers.openai.com/api/docs/pricing, USD per million tokens:
+# text input, image output).
 TEXT_MODEL = "gpt-6-luna"
-IMAGE_MODEL = "gpt-image-1-mini"
-IMAGE_INPUT_USD_PER_M = 2.0
-IMAGE_OUTPUT_USD_PER_M = 8.0
-# Replicate charges per output: Wan 2.2 i2v fast per 480p video
-# (replicate.com/blog/wan-22), MusicGen per run (its model page). MiniMax does
-# not publish a Replicate price for speech-02-turbo; its own list price per
-# 1,000 characters is used (platform.minimax.io pricing).
+IMAGE_MODEL = "gpt-image-2.5-flare"
+IMAGE_INPUT_USD_PER_M = 5.0
+IMAGE_OUTPUT_USD_PER_M = 30.0
+# Replicate prices: Wan 2.2 i2v fast per 480p video (replicate.com/blog/wan-22);
+# MiniMax speech-02-turbo per 1,000 input tokens, one token per character
+# (its Replicate model page); MusicGen is a community model billed by A100
+# time (replicate.com/pricing), so its charge is the prediction's
+# ``predict_time`` at that rate.
 WAN_COST_PER_VIDEO_USD = 0.05
-MUSICGEN_COST_PER_RUN_USD = 0.047
-MINIMAX_TTS_USD_PER_1K_CHARS = 0.06
+MINIMAX_TTS_USD_PER_1K_TOKENS = 0.06
+A100_USD_PER_SECOND = 0.0014
 
 
 def record_api_cost(
     counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
 ) -> None:
-    """Report a provider charge that carries no tokens to the mech cost callback.
-
-    The mech adds ``call_cost`` above the call's (zero) token cost to the
-    request's extra cost, so ``model`` only has to name what was charged.
-    A failed report never fails the answer.
-
-    :param counter_callback: the mech cost callback, or None outside the mech.
-    :param model: the model or service that was charged.
-    :param cost_usd: the charge in USD.
-    """
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
     if counter_callback is None or cost_usd <= 0:
         return
     try:
@@ -172,7 +162,7 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 api_keys.rotate(service)
                 return execute()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                return str(e), "", None, None, api_keys
+                return str(e), "", None, kwargs.get("counter_callback"), api_keys
 
         mech_response = execute()
         return mech_response
@@ -315,7 +305,7 @@ def process_voiceover(
     record_api_cost(
         counter_callback,
         REPLICATE_MINIMAX_TTS,
-        len(text) / 1000 * MINIMAX_TTS_USD_PER_1K_CHARS,
+        len(text) / 1000 * MINIMAX_TTS_USD_PER_1K_TOKENS,
     )
     return url
 
@@ -326,9 +316,9 @@ def process_soundtrack(
     duration: int = 10,
     counter_callback: Any = None,
 ) -> str:
-    """Get a soundtrack for the provided prompt."""
-    url = replicate_client.run(
-        REPLICATE_MUSIC_GEN,
+    """Get a soundtrack for the provided prompt, charged by the compute time it used."""
+    prediction = replicate_client.predictions.create(
+        version=REPLICATE_MUSIC_GEN.split(":", 1)[1],
         input={
             "seed": 3442726813,
             "top_k": 250,
@@ -345,8 +335,16 @@ def process_soundtrack(
             "classifier_free_guidance": 3,
         },
     )
-    record_api_cost(counter_callback, REPLICATE_MUSIC_GEN, MUSICGEN_COST_PER_RUN_USD)
-    return url
+    prediction.wait()
+    if prediction.status != "succeeded":
+        raise RuntimeError(
+            f"MusicGen prediction {prediction.status}: {prediction.error}"
+        )
+    predict_time = float((prediction.metrics or {}).get("predict_time") or 0.0)
+    record_api_cost(
+        counter_callback, REPLICATE_MUSIC_GEN, predict_time * A100_USD_PER_SECOND
+    )
+    return str(prediction.output)
 
 
 def generate_images(
@@ -645,6 +643,10 @@ def run(  # pylint: disable=too-many-locals
         "image": image_hash_,
         "prompt": user_input,
     }
+    # The mech records the last model the callback saw; the script model is
+    # the one that produced the content, the rest are services it paid.
+    if counter_callback is not None and hasattr(counter_callback, "actual_model"):
+        counter_callback.actual_model = TEXT_MODEL
 
     # response text, original prompt, metadata, callback
     return json.dumps(body), user_input, None, counter_callback

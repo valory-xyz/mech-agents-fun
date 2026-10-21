@@ -37,28 +37,17 @@ from google.api_core import (
 # Define MechResponse type alias matching the other tools
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
-# Imagen was retired by Google; Nano Banana is its documented replacement and
-# is served through the Interactions API.
+# Served through the Interactions API; must match ``default_model`` in component.yaml.
 DEFAULT_MODEL = "gemini-nano-banana-2.1"
 IMAGE_SIZE = "1K"
-# USD per generated image at IMAGE_SIZE, Gemini API price list
-# (ai.google.dev/gemini-api/docs/pricing, Nano Banana 2.1).
+# USD per generated image at each size, ai.google.dev/gemini-api/docs/pricing.
 IMAGE_COST_USD = {"1K": 0.0336, "2K": 0.0504, "4K": 0.113}
 
 
 def record_api_cost(
     counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
 ) -> None:
-    """Report a provider charge that carries no tokens to the mech cost callback.
-
-    The mech adds ``call_cost`` above the call's (zero) token cost to the
-    request's extra cost, so ``model`` only has to name what was charged.
-    A failed report never fails the answer.
-
-    :param counter_callback: the mech cost callback, or None outside the mech.
-    :param model: the model or service that was charged.
-    :param cost_usd: the charge in USD.
-    """
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
     if counter_callback is None or cost_usd <= 0:
         return
     try:

@@ -28,11 +28,11 @@ import pytest
 
 import packages.agents_fun.customs.short_maker.short_maker as module
 from packages.agents_fun.customs.short_maker.short_maker import (
+    A100_USD_PER_SECOND,
     IMAGE_INPUT_USD_PER_M,
     IMAGE_MODEL,
     IMAGE_OUTPUT_USD_PER_M,
-    MINIMAX_TTS_USD_PER_1K_CHARS,
-    MUSICGEN_COST_PER_RUN_USD,
+    MINIMAX_TTS_USD_PER_1K_TOKENS,
     REPLICATE_MINIMAX_TTS,
     REPLICATE_MUSIC_GEN,
     REPLICATE_WAN_I2V,
@@ -91,7 +91,7 @@ def _with_chat(content: str) -> MagicMock:
 
 
 def test_audio_prompts_use_the_current_text_model_and_report_tokens() -> None:
-    """gpt-3.5 is retired; the replacement's token usage goes to the mech as tokens."""
+    """The chat model's token usage goes to the mech as tokens, which it prices itself."""
     recorder = _CostRecorder()
     with patch.object(module, "client", _with_chat(AUDIO_JSON)) as client:
         prompts = get_audio_prompts("space", counter_callback=recorder)
@@ -123,7 +123,7 @@ def test_shot_prompts_report_tokens_too() -> None:
 
 
 def test_images_are_saved_as_files_and_charged_from_usage(tmp_path: Any) -> None:
-    """DALL-E is retired; the image model returns base64 and token usage."""
+    """The image model returns base64 and token usage; the usage is the charge."""
     recorder = _CostRecorder()
     client = MagicMock()
     client.images.generate.return_value = SimpleNamespace(
@@ -139,7 +139,7 @@ def test_images_are_saved_as_files_and_charged_from_usage(tmp_path: Any) -> None
     assert (
         client.images.generate.call_args.kwargs["model"]
         == IMAGE_MODEL
-        == "gpt-image-1-mini"
+        == "gpt-image-2.5-flare"
     )
     expected = (10 * IMAGE_INPUT_USD_PER_M + 272 * IMAGE_OUTPUT_USD_PER_M) / 1e6
     assert recorder.charges() == pytest.approx([(IMAGE_MODEL, expected)])
@@ -161,7 +161,7 @@ def test_a_failed_image_is_skipped_without_a_charge(tmp_path: Any) -> None:
 def test_first_shots_animate_the_file_with_wan_and_charge_per_video(
     tmp_path: Any,
 ) -> None:
-    """Stable Video Diffusion is gone; Wan 2.2 takes the image file and a prompt."""
+    """Wan 2.2 takes the image file and a prompt and is charged per clip."""
     recorder = _CostRecorder()
     image = tmp_path / "shot1_prompt.png"
     image.write_bytes(b"png")
@@ -192,11 +192,19 @@ def test_a_missing_shot_image_is_skipped_without_calling_replicate(
     assert recorder.charges() == []
 
 
-def test_voiceover_is_charged_per_character_and_music_per_run() -> None:
-    """The two Replicate audio models report at their list prices."""
+def test_voiceover_is_charged_per_token_and_music_by_compute_time() -> None:
+    """MiniMax is billed per input token (one per character); MusicGen by the A100 time it ran."""
     recorder = _CostRecorder()
     replicate = MagicMock()
-    replicate.run.side_effect = ["https://r/voice.mp3", "https://r/music.mp3"]
+    replicate.run.return_value = "https://r/voice.mp3"
+    prediction = SimpleNamespace(
+        status="succeeded",
+        error=None,
+        output="https://r/music.mp3",
+        metrics={"predict_time": 12.5},
+        wait=lambda: None,
+    )
+    replicate.predictions.create.return_value = prediction
     text = "Hello there, this is a voiceover."
 
     assert (
@@ -205,9 +213,42 @@ def test_voiceover_is_charged_per_character_and_music_per_run() -> None:
     )
     assert process_soundtrack(replicate, "calm", 5, recorder) == "https://r/music.mp3"
 
+    version = replicate.predictions.create.call_args.kwargs["version"]
+    assert version == REPLICATE_MUSIC_GEN.split(":", 1)[1]
     assert recorder.charges() == pytest.approx(
         [
-            (REPLICATE_MINIMAX_TTS, len(text) / 1000 * MINIMAX_TTS_USD_PER_1K_CHARS),
-            (REPLICATE_MUSIC_GEN, MUSICGEN_COST_PER_RUN_USD),
+            (REPLICATE_MINIMAX_TTS, len(text) / 1000 * MINIMAX_TTS_USD_PER_1K_TOKENS),
+            (REPLICATE_MUSIC_GEN, 12.5 * A100_USD_PER_SECOND),
         ]
     )
+
+
+def test_a_failed_soundtrack_raises_and_is_not_charged() -> None:
+    """A prediction that did not succeed is an error, not a billed run."""
+    recorder = _CostRecorder()
+    replicate = MagicMock()
+    replicate.predictions.create.return_value = SimpleNamespace(
+        status="failed", error="oom", output=None, metrics={}, wait=lambda: None
+    )
+    with pytest.raises(RuntimeError, match="failed"):
+        process_soundtrack(replicate, "calm", 5, recorder)
+    assert recorder.charges() == []
+
+
+def test_a_failed_run_still_hands_the_callback_back() -> None:
+    """Charges reported before a later step failed must reach the mech."""
+    recorder = _CostRecorder()
+    with (
+        patch.object(module, "client", _with_chat(AUDIO_JSON)),
+        patch.object(module, "OpenAI", return_value=_with_chat(AUDIO_JSON)),
+        patch.object(module, "ReplicateClient") as replicate_cls,
+    ):
+        replicate_cls.return_value.run.side_effect = RuntimeError("replicate down")
+        result = module.run(
+            prompt="space",
+            tool="short_maker",
+            api_keys=_api_keys(openai="ok", replicate="rk"),
+            counter_callback=recorder,
+        )
+    assert result[3] is recorder
+    assert [c["model"] for c in recorder.calls] == [TEXT_MODEL]

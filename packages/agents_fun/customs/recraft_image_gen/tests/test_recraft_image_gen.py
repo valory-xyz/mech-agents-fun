@@ -80,7 +80,7 @@ def _run(recorder: _CostRecorder, url: Any) -> Tuple[Any, ...]:
 
 
 def test_the_model_is_pinned_and_one_image_is_charged() -> None:
-    """The call names the model, so Recraft's default cannot move the price."""
+    """The call names the model, so Recraft's default cannot move the price or the styles."""
     recorder = _CostRecorder()
 
     (result, _, _, callback, _), client = _run(recorder, "https://img/fox.png")
@@ -88,9 +88,7 @@ def test_the_model_is_pinned_and_one_image_is_charged() -> None:
     assert json.loads(result)["image_hash"] == IMAGE_HASH
     assert callback is recorder
     assert (
-        client.images.generate.call_args.kwargs["model"]
-        == RECRAFT_MODEL
-        == "recraftv4_1"
+        client.images.generate.call_args.kwargs["model"] == RECRAFT_MODEL == "recraftv3"
     )
     assert recorder.charges() == [(RECRAFT_MODEL, RECRAFT_COST_PER_IMAGE_USD)]
 

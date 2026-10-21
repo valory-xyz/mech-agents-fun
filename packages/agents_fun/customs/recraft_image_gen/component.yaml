@@ -7,9 +7,9 @@ license: Apache-2.0
 aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
   __init__.py: bafybeiglo5n4m7xrxm7oi6mgquik3adxihqcrcxppehmmwkezya6bxzhky
-  recraft_image_gen.py: bafybeicnfq7nzp5tjtbm6srjn47fwvbeowi6wexhdkg6mxu2uu2jeptovi
+  recraft_image_gen.py: bafybeifb3zvtfo7qnny5mg3jja6vsywkxvi6ctznitksmiv6vwl3eru2tm
   tests/__init__.py: bafybeigk5a5nmr64pfovynkscmx7mrcn26xqrsh6ylmibfckm2zpv2cmpe
-  tests/test_recraft_image_gen.py: bafybeiboor4sb24t5jrlk6hxiguyzgklqvcsd5pjnif7y33vhhzws2i3ne
+  tests/test_recraft_image_gen.py: bafybeihtb7w6ai5pymcqwiglyj53af7osndoqbfymsi5an74byp7ynmpwu
 fingerprint_ignore_patterns: []
 entry_point: recraft_image_gen.py
 callable: run
