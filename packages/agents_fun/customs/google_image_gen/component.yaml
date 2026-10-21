@@ -9,7 +9,7 @@ fingerprint:
   __init__.py: bafybeifer6if5lybh6pxlawyj4p54ts2hwalzbqehhsqxit352ozh53oj4
   google_image_gen.py: bafybeicwj4rio27toouxpd3tiw4dw3ythx6bimspfdb3gg5mxhqku45n5e
   tests/__init__.py: bafybeic4zowcjvl6jmwuaztfqkmw7jm2lobcrg2qt7mt3kmbuqgzz3lqxu
-  tests/test_google_image_gen.py: bafybeidqhaglud6moy6fp2b3g2krptb5xil3kobqxdqb745rwdiufv42si
+  tests/test_google_image_gen.py: bafybeibwv4g4sbr2t3qotdsnplrlrlq3f6ifba2wbmxx6uis6erkqecpuu
 fingerprint_ignore_patterns: []
 entry_point: google_image_gen.py
 callable: run

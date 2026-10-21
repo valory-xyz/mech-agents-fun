@@ -117,14 +117,10 @@ def test_run_uses_nano_banana_and_reports_the_per_image_price() -> None:
 
 def test_the_component_default_model_is_the_served_one() -> None:
     """The mech passes component.yaml's ``default_model`` as ``model``; it must be the current id."""
-    import yaml
-
-    with open(
-        module.__file__.replace("google_image_gen.py", "component.yaml"),
-        encoding="utf-8",
-    ) as handle:
-        component = yaml.safe_load(handle)
-    assert component["params"]["default_model"] == DEFAULT_MODEL
+    component = module.__file__.replace("google_image_gen.py", "component.yaml")
+    with open(component, encoding="utf-8") as handle:
+        lines = [line.strip() for line in handle if "default_model:" in line]
+    assert lines == [f"default_model: {DEFAULT_MODEL}"]
 
 
 def test_run_uses_the_model_the_mech_passes() -> None:
