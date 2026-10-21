@@ -52,9 +52,9 @@ skills:
 - valory/transaction_settlement_abci:0.1.0:bafybeihizaapype5sz7vlosms3nfo6jzfj4ujycuf5uthviq2otvmw6f6m
 - valory/websocket_client:0.1.0:bafybeiht2ify5vkseeulutzjwkw5vcmhcwtun2o5ehn6hya6uz4eanua2m
 customs:
-- agents_fun/google_image_gen:0.1.0:bafybeiczdxwwottbwphberpnrlv6abp3g4ccin265qnkkd3j56h3rjvrmi
-- agents_fun/short_maker:0.1.0:bafybeialdibotrsz7l64346iwgczuaqhk3y7ge6ozyzadpgxvhswz7gwpa
-- agents_fun/stability_ai_request:0.1.0:bafybeihndmvigf7vufvwbg24mbdhgbqqlrbuanr6sm5qtoavvmbautsd3e
+- agents_fun/google_image_gen:0.1.0:bafybeigljsyqrxzxhcqvlqaoii6en2gcaauvsyqhvwddl4hsltot33wvpy
+- agents_fun/short_maker:0.1.0:bafybeig2tkavgfffu655tv2tqobpcryyt6koyrrju4jd2qv4fskv25pxnm
+- agents_fun/stability_ai_request:0.1.0:bafybeicbebjf3whasajzykevxhwqkvuvzkm44ccxb4kobitujqkntafdqy
 - valory/superforcaster:0.1.0:bafybeidwdixsstuexhtgrzhl5tpcx2ezkvb2oace62z32ty52z5wdradna
 default_ledger: ethereum
 required_ledgers:

@@ -18,6 +18,7 @@
 # ------------------------------------------------------------------------------
 """This module contains the implementation of the google_image_gen tool based on a working snippet."""
 
+import base64
 import functools
 import json
 import os
@@ -32,12 +33,45 @@ from google import genai  # type: ignore[import-not-found]
 from google.api_core import (
     exceptions as google_exceptions,  # type: ignore[import-not-found]
 )
-from google.genai import types  # type: ignore[import-not-found]
 
 # Define MechResponse type alias matching the other tools
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
-DEFAULT_MODEL = "imagen-4.0-generate-001"
+# Imagen was retired by Google; Nano Banana is its documented replacement and
+# is served through the Interactions API.
+DEFAULT_MODEL = "gemini-nano-banana-2.1"
+IMAGE_SIZE = "1K"
+# USD per generated image at IMAGE_SIZE, Gemini API price list
+# (ai.google.dev/gemini-api/docs/pricing, Nano Banana 2.1).
+IMAGE_COST_USD = {"1K": 0.0336, "2K": 0.0504, "4K": 0.113}
+
+
+def record_api_cost(
+    counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
+) -> None:
+    """Report a provider charge that carries no tokens to the mech cost callback.
+
+    The mech adds ``call_cost`` above the call's (zero) token cost to the
+    request's extra cost, so ``model`` only has to name what was charged.
+    A failed report never fails the answer.
+
+    :param counter_callback: the mech cost callback, or None outside the mech.
+    :param model: the model or service that was charged.
+    :param cost_usd: the charge in USD.
+    """
+    if counter_callback is None or cost_usd <= 0:
+        return
+    try:
+        counter_callback(
+            input_tokens=0,
+            output_tokens=0,
+            model=model,
+            token_counter=lambda text, model: 0,
+            call_cost=cost_usd,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"Could not report the {model} cost to the mech: {exc}")
+
 
 # Define allowed tools for this module
 ALLOWED_TOOLS = [
@@ -152,32 +186,24 @@ def _generate_image_from_google_api(
     client: genai.Client, prompt: str, model_name: Optional[str], counter_callback: Any
 ) -> Tuple[Optional[bytes], Optional[Tuple[str, str, None, Any]]]:
     """Generates image data using the Google API and handles initial response validation."""
-    response = client.models.generate_images(
-        model=model_name,  # type: ignore[arg-type]
-        prompt=prompt,
-        config=types.GenerateImagesConfig(number_of_images=1),
+    interaction = client.interactions.create(
+        model=model_name,
+        input=prompt,
+        response_format={"type": "image", "image_size": IMAGE_SIZE},
     )
 
-    if not response.generated_images:
+    output_image = getattr(interaction, "output_image", None)
+    encoded = getattr(output_image, "data", None) if output_image else None
+    if not encoded:
         return None, (
-            "No image data found in the response (generated_images is empty).",
+            "No image data found in the response (output_image is empty).",
             prompt,
             None,
             counter_callback,
         )
-
-    first_generated_image = response.generated_images[0]
-
-    if not hasattr(first_generated_image, "image") or not hasattr(
-        first_generated_image.image, "image_bytes"
-    ):
-        return None, (
-            "Image data structure is not as expected.",
-            prompt,
-            None,
-            counter_callback,
-        )
-    return first_generated_image.image.image_bytes, None  # type: ignore[union-attr]
+    # A generated image is billed per image, not per token.
+    record_api_cost(counter_callback, str(model_name), IMAGE_COST_USD[IMAGE_SIZE])
+    return base64.b64decode(encoded), None
 
 
 def _save_image_and_upload_to_ipfs(

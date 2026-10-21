@@ -37,6 +37,38 @@ ALLOWED_TOOLS = [
     "recraft-image-gen",
 ]
 
+# Pinned so the charge does not move with Recraft's server-side default.
+RECRAFT_MODEL = "recraftv4_1"
+# USD per raster image for RECRAFT_MODEL, recraft.ai/docs/api-reference/pricing.
+RECRAFT_COST_PER_IMAGE_USD = 0.035
+
+
+def record_api_cost(
+    counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
+) -> None:
+    """Report a provider charge that carries no tokens to the mech cost callback.
+
+    The mech adds ``call_cost`` above the call's (zero) token cost to the
+    request's extra cost, so ``model`` only has to name what was charged.
+    A failed report never fails the answer.
+
+    :param counter_callback: the mech cost callback, or None outside the mech.
+    :param model: the model or service that was charged.
+    :param cost_usd: the charge in USD.
+    """
+    if counter_callback is None or cost_usd <= 0:
+        return
+    try:
+        counter_callback(
+            input_tokens=0,
+            output_tokens=0,
+            model=model,
+            token_counter=lambda text, model: 0,
+            call_cost=cost_usd,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"Could not report the {model} cost to the mech: {exc}")
+
 
 def _validate_api_keys(api_keys: Any) -> Optional[str]:
     required_methods = ["max_retries", "rotate", "get"]
@@ -109,7 +141,9 @@ def _generate_content(prompt: str, style: str, api_key: str) -> Any:
         base_url="https://external.api.recraft.ai/v1",
         api_key=api_key,
     )
-    return client.images.generate(prompt=prompt, style=style)  # type: ignore[arg-type]
+    return client.images.generate(
+        model=RECRAFT_MODEL, prompt=prompt, style=style  # type: ignore[arg-type]
+    )
 
 
 def _extract_image_url_from_response(response: Any) -> Optional[str]:
@@ -167,6 +201,8 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
         response = _generate_content(prompt, style, api_key)
         print("[DEBUG] Raw response from Recraft API:", response)
         image_url = _extract_image_url_from_response(response)
+        if image_url is not None:
+            record_api_cost(counter_callback, RECRAFT_MODEL, RECRAFT_COST_PER_IMAGE_USD)
         if image_url is None:
             return (
                 "No image URL found in response.data[0].url.",
