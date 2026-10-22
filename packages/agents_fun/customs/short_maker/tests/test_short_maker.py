@@ -52,6 +52,7 @@ class _CostRecorder:
 
     def __init__(self) -> None:
         self.calls: List[Dict[str, Any]] = []
+        self.actual_model: Any = None
 
     def __call__(self, **kwargs: Any) -> None:
         self.calls.append(kwargs)
@@ -252,3 +253,50 @@ def test_a_failed_run_still_hands_the_callback_back() -> None:
         )
     assert result[3] is recorder
     assert [c["model"] for c in recorder.calls] == [TEXT_MODEL]
+
+
+def test_a_successful_run_reports_the_script_model_as_the_one_used(
+    tmp_path: Any,
+) -> None:
+    """The metadata model is the script model, not the last service the run paid."""
+    recorder = _CostRecorder()
+    recorder.actual_model = REPLICATE_MUSIC_GEN
+    image = tmp_path / "shot1.png"
+    image.write_bytes(b"png")
+    ipfs = MagicMock()
+    ipfs.add.return_value = (None, "bafyvideo", None)
+    ipfs.client.add.return_value = {"Hash": "bafyimage"}
+    with (
+        patch.object(module, "OpenAI", return_value=MagicMock()),
+        patch.object(module, "ReplicateClient"),
+        patch.object(module.tempfile, "mkdtemp", return_value=str(tmp_path)),
+        patch.object(
+            module,
+            "get_audio_prompts",
+            return_value={
+                "voiceover_script": "Hi",
+                "soundtrack_prompt": "calm",
+                "voice": "v",
+            },
+        ),
+        patch.object(module, "process_voiceover", return_value="https://a/voice.mp3"),
+        patch.object(module, "download_file", side_effect=lambda _url, path: path),
+        patch.object(module, "get_audio_duration", return_value=3.0),
+        patch.object(module, "get_shot_prompts", return_value={"shot1": "a rocket"}),
+        patch.object(module, "generate_images", return_value={"shot1": str(image)}),
+        patch.object(module, "process_first_shots", return_value="https://a/shot.mp4"),
+        patch.object(module, "process_soundtrack", return_value="https://a/music.mp3"),
+        patch.object(
+            module, "compose_final_video", return_value=str(tmp_path / "f.mp4")
+        ),
+        patch.object(module, "IPFSTool", return_value=ipfs),
+        patch.object(module, "cleanup_tempdir"),
+    ):
+        result = module.run(
+            prompt="space",
+            tool="short_maker",
+            api_keys=_api_keys(openai="ok", replicate="rk"),
+            counter_callback=recorder,
+        )
+    assert result[3] is recorder
+    assert recorder.actual_model == TEXT_MODEL

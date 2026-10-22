@@ -194,8 +194,6 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
         response = _generate_content(prompt, style, api_key)
         print("[DEBUG] Raw response from Recraft API:", response)
         image_url = _extract_image_url_from_response(response)
-        if image_url is not None:
-            record_api_cost(counter_callback, RECRAFT_MODEL, RECRAFT_COST_PER_IMAGE_USD)
         if image_url is None:
             return (
                 "No image URL found in response.data[0].url.",
@@ -203,6 +201,7 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
                 None,
                 counter_callback,
             )
+        record_api_cost(counter_callback, RECRAFT_MODEL, RECRAFT_COST_PER_IMAGE_USD)
         image_bytes = _download_image(image_url)
         if image_bytes is None:
             return "Failed to download image from URL.", prompt, None, counter_callback
