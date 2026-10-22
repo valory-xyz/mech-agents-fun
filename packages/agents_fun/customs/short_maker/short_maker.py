@@ -417,12 +417,7 @@ def run(  # pylint: disable=too-many-locals
     counter_callback = kwargs.get("counter_callback", None)
     tool = kwargs.get("tool")
     if tool not in ALLOWED_TOOLS:
-        return (
-            f"Tool {tool} is not supported by this agent.",
-            user_input,
-            None,
-            counter_callback,
-        )
+        raise ValueError(f"Tool {tool} is not supported by this agent.")
 
     # Initialize OpenAI client with the provided key
     global client  # pylint: disable=global-statement

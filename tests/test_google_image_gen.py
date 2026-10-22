@@ -22,6 +22,7 @@
 import json
 from io import BytesIO
 from pathlib import Path
+from typing import Dict
 from unittest.mock import MagicMock
 
 import pytest
@@ -132,10 +133,25 @@ def test_rate_limit_reraises_when_no_retries_left(genai_client: MagicMock) -> No
     assert api_keys.rotated == []
 
 
-def test_unsupported_tool_returns_message_without_calling_provider(
-    genai_client: MagicMock,
+@pytest.mark.parametrize(
+    ("tool", "keys", "message"),
+    [
+        ("other_tool", {"gemini_api_key": GEMINI_KEY}, "not supported"),
+        (TOOL, {"gemini_api_key": ""}, "GEMINI_API_KEY"),
+        (TOOL, {}, "GEMINI_API_KEY"),
+    ],
+)
+def test_invalid_request_raises_before_any_provider_call(
+    genai_client: MagicMock, tool: str, keys: Dict[str, str], message: str
 ) -> None:
-    """Bad buyer input is answered with a message before any paid call."""
-    result = _run(FakeKeyChain({"gemini_api_key": GEMINI_KEY}), tool="other_tool")
-    assert "not supported" in result[0]
+    """An unsupported tool or a missing key raises before any paid call."""
+    with pytest.raises(ValueError, match=message):
+        _run(FakeKeyChain(keys), tool=tool)
+    genai_client.models.generate_images.assert_not_called()
+
+
+def test_keychain_without_rotation_methods_raises(genai_client: MagicMock) -> None:
+    """A plain dict in place of the mech KeyChain raises instead of answering."""
+    with pytest.raises(TypeError, match="required methods"):
+        module.run(prompt=PROMPT, tool=TOOL, api_keys={"gemini_api_key": GEMINI_KEY})
     genai_client.models.generate_images.assert_not_called()

@@ -76,10 +76,9 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
             or not hasattr(api_keys, "rotate")
             or not hasattr(api_keys, "get")
         ):
-            error_msg = "api_keys object does not have required methods (max_retries, rotate, get)"
-            prompt_val = kwargs.get("prompt", "N/A")
-            callback_val = kwargs.get("counter_callback", None)
-            return error_msg, prompt_val, None, callback_val, None  # Return 5 elements
+            raise TypeError(
+                "api_keys object does not have required methods (max_retries, rotate, get)"
+            )
 
         retries_left: Dict[str, int] = api_keys.max_retries()
 
@@ -127,26 +126,17 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
     return wrapper
 
 
-def _validate_inputs(
-    tool: Optional[str], api_key: Optional[str], prompt: str, counter_callback: Any
-) -> Optional[Tuple[str, str, None, Any]]:
-    """Validate tool and API key."""
-    if tool not in ALLOWED_TOOLS:
-        return (
-            f"Tool {tool} is not supported by this agent.",
-            prompt,
-            None,
-            counter_callback,
-        )
+def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> None:
+    """Validate tool and API key.
 
+    :param tool: the requested tool name.
+    :param api_key: the Gemini API key.
+    :raises ValueError: if the tool is not supported or the key is missing.
+    """
+    if tool not in ALLOWED_TOOLS:
+        raise ValueError(f"Tool {tool} is not supported by this agent.")
     if not api_key:
-        return (
-            "Google API key (GEMINI_API_KEY) not provided.",
-            prompt,
-            None,
-            counter_callback,
-        )
-    return None
+        raise ValueError("Google API key (GEMINI_API_KEY) not provided.")
 
 
 def download_file(url: str, local_filename: str) -> str:
@@ -359,9 +349,16 @@ def compose_final_video(  # pylint: disable=too-many-positional-arguments,too-ma
 
 
 def _generate_video_from_google_api(
-    client: genai.Client, prompt: str, model_name: str, counter_callback: Any
-) -> Tuple[Optional[bytes], Optional[Tuple[str, str, None, Any]]]:
-    """Generates video data using the Google API and handles initial response validation."""
+    client: genai.Client, prompt: str, model_name: str
+) -> bytes:
+    """Generate video data using the Google API.
+
+    :param client: the Google GenAI client.
+    :param prompt: the video prompt.
+    :param model_name: the Veo model to use.
+    :return: the generated video bytes.
+    :raises ValueError: if the response carries no video.
+    """
     operation = client.models.generate_videos(
         model=model_name,
         prompt=prompt,
@@ -382,11 +379,8 @@ def _generate_video_from_google_api(
     result = operation.result
     print(f"Video generation operation result: {result}")
     if result is None or not result.generated_videos:
-        return None, (
-            "No video data found in the response (generated_videos is empty).",
-            prompt,
-            None,
-            counter_callback,
+        raise ValueError(
+            "No video data found in the response (generated_videos is empty)."
         )
 
     video_file = result.generated_videos[0].video
@@ -396,8 +390,9 @@ def _generate_video_from_google_api(
     print(f"Downloading video file from URI: {video_file.uri}")
     client.files.download(file=video_file)
     video_bytes = video_file.video_bytes
-
-    return video_bytes, None
+    if video_bytes is None:
+        raise ValueError("Downloaded video has no bytes.")
+    return video_bytes
 
 
 def _save_video_and_upload_to_ipfs(
@@ -405,24 +400,15 @@ def _save_video_and_upload_to_ipfs(
 ) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, str]:
     """Saves the video data to a temporary file, uploads to IPFS, and returns the path."""
     temp_video_path = f"temp_generated_video_{os.getpid()}.mp4"
-    try:
-        with open(temp_video_path, "wb") as f:
-            f.write(video_data)
+    with open(temp_video_path, "wb") as f:
+        f.write(video_data)
 
-        ipfs_tool = IPFSTool()
-        _, video_hash, _ = ipfs_tool.add(temp_video_path, wrap_with_directory=False)
+    ipfs_tool = IPFSTool()
+    _, video_hash, _ = ipfs_tool.add(temp_video_path, wrap_with_directory=False)
 
-        result_data = {"video_hash": video_hash, "prompt": prompt, "model": model_name}
-        # The `temp_video_path` is returned to be used for video merging.
-        return json.dumps(result_data), prompt, None, counter_callback, temp_video_path
-    except FileNotFoundError:
-        return (
-            "IPFS tool not found or not configured correctly.",
-            prompt,
-            None,
-            counter_callback,
-            "",  # Return empty string for temp_video_path on error
-        )
+    result_data = {"video_hash": video_hash, "prompt": prompt, "model": model_name}
+    # The `temp_video_path` is returned to be used for video merging.
+    return json.dumps(result_data), prompt, None, counter_callback, temp_video_path
 
 
 def _generate_audio_with_gemini_tts(
@@ -468,14 +454,12 @@ def run(  # pylint: disable=too-many-locals
     counter_callback = kwargs.get("counter_callback", None)
     model_name = "veo-2.0-generate-001"
 
+    _validate_inputs(tool, google_api_key)
+
     # Initialize clients
     google_client = genai.Client(api_key=google_api_key)
 
     file_prefix = prompt[:20].replace(" ", "_").replace("-", "_").lower()
-
-    validation_error = _validate_inputs(tool, google_api_key, prompt, counter_callback)
-    if validation_error:
-        return validation_error
 
     temp_files = []
     try:

@@ -38,19 +38,12 @@ ALLOWED_TOOLS = [
 ]
 
 
-def _validate_api_keys(api_keys: Any) -> Optional[str]:
+def _validate_api_keys(api_keys: Any) -> None:
     required_methods = ["max_retries", "rotate", "get"]
     if not all(hasattr(api_keys, method) for method in required_methods):
-        return (
+        raise TypeError(
             "api_keys object does not have required methods (max_retries, rotate, get)"
         )
-    return None
-
-
-def _create_error_response(error_msg: str, **kwargs: Any) -> MechResponse:
-    prompt_val = kwargs.get("prompt", "N/A")
-    callback_val = kwargs.get("counter_callback", None)
-    return error_msg, prompt_val, None, callback_val, None
 
 
 def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
@@ -59,21 +52,18 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> MechResponse:
         api_keys = kwargs["api_keys"]
-        validation_error = _validate_api_keys(api_keys)
-        if validation_error:
-            return _create_error_response(validation_error, **kwargs)
+        _validate_api_keys(api_keys)
         result = func(*args, **kwargs)
         return result + (api_keys,)
 
     return wrapper
 
 
-def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> Optional[str]:
+def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> None:
     if tool not in ALLOWED_TOOLS:
-        return f"Tool {tool} is not supported by this agent."
+        raise ValueError(f"Tool {tool} is not supported by this agent.")
     if not api_key:
-        return "Recraft API key (RECRAFT_API_KEY) not provided."
-    return None
+        raise ValueError("Recraft API key (RECRAFT_API_KEY) not provided.")
 
 
 def _generate_content(prompt: str, style: str, api_key: str) -> Any:
@@ -126,9 +116,7 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
     tool = kwargs.get("tool")
     counter_callback = kwargs.get("counter_callback", None)
 
-    validation_error = _validate_inputs(tool, api_key)
-    if validation_error:
-        return validation_error, prompt, None, counter_callback
+    _validate_inputs(tool, api_key)
 
     response = _generate_content(prompt, style, api_key)
     print("[DEBUG] Raw response from Recraft API:", response)

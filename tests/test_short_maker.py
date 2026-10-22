@@ -66,10 +66,10 @@ def _api_keys() -> FakeKeyChain:
     )
 
 
-def _run(api_keys: FakeKeyChain) -> tuple:
+def _run(api_keys: FakeKeyChain, tool: str = TOOL) -> tuple:
     """Call the tool entry point."""
     return module.run(
-        prompt=PROMPT, tool=TOOL, api_keys=api_keys, counter_callback=None
+        prompt=PROMPT, tool=tool, api_keys=api_keys, counter_callback=None
     )
 
 
@@ -127,3 +127,10 @@ def test_generate_images_raises_on_failed_shot(
     post.return_value = response
     with pytest.raises(error_type):
         module.generate_images_with_dalle(SHOT_PROMPTS, OPENAI_KEY)
+
+
+def test_unsupported_tool_raises_before_any_provider_call(chat: MagicMock) -> None:
+    """An unsupported tool raises instead of answering with a message."""
+    with pytest.raises(ValueError, match="other_tool is not supported"):
+        _run(_api_keys(), tool="other_tool")
+    chat.assert_not_called()

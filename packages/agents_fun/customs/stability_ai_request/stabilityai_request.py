@@ -139,7 +139,7 @@ def run(  # pylint: disable=too-many-locals
     prompt = kwargs["prompt"]
 
     if tool not in ALLOWED_TOOLS:
-        return f"Tool {tool} is not in the list of supported tools.", None, None, None
+        raise ValueError(f"Tool {tool} is not in the list of supported tools.")
 
     # Place content moderation request here if needed
     engine = tool.replace(PREFIX, "")

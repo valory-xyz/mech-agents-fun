@@ -57,10 +57,9 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
             or not hasattr(api_keys, "rotate")
             or not hasattr(api_keys, "get")
         ):
-            error_msg = "api_keys object does not have required methods (max_retries, rotate, get)"
-            prompt_val = kwargs.get("prompt", "N/A")
-            callback_val = kwargs.get("counter_callback", None)
-            return error_msg, prompt_val, None, callback_val, None  # Return 5 elements
+            raise TypeError(
+                "api_keys object does not have required methods (max_retries, rotate, get)"
+            )
 
         retries_left: Dict[str, int] = api_keys.max_retries()
 
@@ -118,26 +117,17 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
     return wrapper
 
 
-def _validate_inputs(
-    tool: Optional[str], api_key: Optional[str], prompt: str, counter_callback: Any
-) -> Optional[Tuple[str, str, None, Any]]:
-    """Validate tool and API key."""
-    if tool not in ALLOWED_TOOLS:
-        return (
-            f"Tool {tool} is not supported by this agent.",
-            prompt,
-            None,
-            counter_callback,
-        )
+def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> None:
+    """Validate tool and API key.
 
+    :param tool: the requested tool name.
+    :param api_key: the Gemini API key.
+    :raises ValueError: if the tool is not supported or the key is missing.
+    """
+    if tool not in ALLOWED_TOOLS:
+        raise ValueError(f"Tool {tool} is not supported by this agent.")
     if not api_key:
-        return (
-            "Google API key (GEMINI_API_KEY) not provided.",
-            prompt,
-            None,
-            counter_callback,
-        )
-    return None
+        raise ValueError("Google API key (GEMINI_API_KEY) not provided.")
 
 
 def _generate_image_from_google_api(
@@ -200,9 +190,7 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
     counter_callback = kwargs.get("counter_callback", None)
     model_name = kwargs.get("model") or DEFAULT_MODEL
 
-    validation_error = _validate_inputs(tool, api_key, prompt, counter_callback)
-    if validation_error:
-        return validation_error
+    _validate_inputs(tool, api_key)
 
     client = genai.Client(api_key=api_key)
     image_data = _generate_image_from_google_api(client, prompt, model_name)

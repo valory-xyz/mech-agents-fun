@@ -56,9 +56,9 @@ def _api_keys() -> FakeKeyChain:
     )
 
 
-def _run(api_keys: FakeKeyChain) -> tuple:
+def _run(api_keys: FakeKeyChain, tool: str = TOOL) -> tuple:
     """Call the tool entry point."""
-    return module.run(prompt=PROMPT, tool=TOOL, api_keys=api_keys)
+    return module.run(prompt=PROMPT, tool=tool, api_keys=api_keys)
 
 
 def test_run_raises_on_non_200_response(post: MagicMock) -> None:
@@ -102,3 +102,13 @@ def test_wrapper_propagates_non_rate_limit_error() -> None:
     with pytest.raises(KeyError):
         module.with_key_rotation(func)(api_keys=api_keys)
     assert api_keys.rotated == []
+
+
+@pytest.mark.parametrize("tool", ["other_tool", "stabilityai-", ""])
+def test_unsupported_tool_raises_before_any_provider_call(
+    post: MagicMock, tool: str
+) -> None:
+    """An unsupported tool raises instead of answering with a message."""
+    with pytest.raises(ValueError, match="not in the list of supported tools"):
+        _run(_api_keys(), tool=tool)
+    post.assert_not_called()

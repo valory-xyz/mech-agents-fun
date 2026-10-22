@@ -22,7 +22,7 @@
 import json
 from io import BytesIO
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Dict
 from unittest.mock import MagicMock
 
 import pytest
@@ -71,10 +71,10 @@ def _api_keys() -> FakeKeyChain:
     return FakeKeyChain({"recraft_api_key": RECRAFT_KEY})
 
 
-def _run(api_keys: FakeKeyChain) -> tuple:
+def _run(api_keys: FakeKeyChain, tool: str = TOOL) -> tuple:
     """Call the tool entry point."""
     return module.run(
-        prompt=PROMPT, tool=TOOL, api_keys=api_keys, counter_callback=None
+        prompt=PROMPT, tool=tool, api_keys=api_keys, counter_callback=None
     )
 
 
@@ -113,3 +113,27 @@ def test_successful_run_appends_keychain(boundaries: MagicMock) -> None:
     result = _run(api_keys)
     assert json.loads(result[0])["image_hash"] == IMAGE_HASH
     assert result[-1] is api_keys
+
+
+@pytest.mark.parametrize(
+    ("tool", "keys", "message"),
+    [
+        ("other_tool", {"recraft_api_key": RECRAFT_KEY}, "not supported"),
+        (TOOL, {"recraft_api_key": ""}, "RECRAFT_API_KEY"),
+        (TOOL, {}, "RECRAFT_API_KEY"),
+    ],
+)
+def test_invalid_request_raises_before_any_provider_call(
+    boundaries: MagicMock, tool: str, keys: Dict[str, str], message: str
+) -> None:
+    """An unsupported tool or a missing key raises before any paid call."""
+    with pytest.raises(ValueError, match=message):
+        _run(FakeKeyChain(keys), tool=tool)
+    boundaries.images.generate.assert_not_called()
+
+
+def test_keychain_without_rotation_methods_raises(boundaries: MagicMock) -> None:
+    """A plain dict in place of the mech KeyChain raises instead of answering."""
+    with pytest.raises(TypeError, match="required methods"):
+        module.run(prompt=PROMPT, tool=TOOL, api_keys={"recraft_api_key": RECRAFT_KEY})
+    boundaries.images.generate.assert_not_called()

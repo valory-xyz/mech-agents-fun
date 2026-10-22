@@ -21,6 +21,7 @@
 
 import json
 from pathlib import Path
+from typing import Dict
 from unittest.mock import MagicMock
 
 import pytest
@@ -62,10 +63,10 @@ def genai_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> MagicMock:
     return client
 
 
-def _run(api_keys: FakeKeyChain) -> tuple:
+def _run(api_keys: FakeKeyChain, tool: str = TOOL) -> tuple:
     """Call the tool entry point."""
     return module.run(
-        prompt=PROMPT, tool=TOOL, api_keys=api_keys, counter_callback=None
+        prompt=PROMPT, tool=tool, api_keys=api_keys, counter_callback=None
     )
 
 
@@ -122,3 +123,27 @@ def test_rate_limit_reraises_when_no_retries_left(genai_client: MagicMock) -> No
     with pytest.raises(google_exceptions.ResourceExhausted):
         _run(api_keys)
     assert api_keys.rotated == []
+
+
+@pytest.mark.parametrize(
+    ("tool", "keys", "message"),
+    [
+        ("other_tool", {"gemini_api_key": GEMINI_KEY}, "not supported"),
+        (TOOL, {"gemini_api_key": ""}, "GEMINI_API_KEY"),
+        (TOOL, {}, "GEMINI_API_KEY"),
+    ],
+)
+def test_invalid_request_raises_before_any_provider_call(
+    genai_client: MagicMock, tool: str, keys: Dict[str, str], message: str
+) -> None:
+    """An unsupported tool or a missing key raises before any paid call."""
+    with pytest.raises(ValueError, match=message):
+        _run(FakeKeyChain(keys), tool=tool)
+    genai_client.models.generate_content.assert_not_called()
+
+
+def test_keychain_without_rotation_methods_raises(genai_client: MagicMock) -> None:
+    """A plain dict in place of the mech KeyChain raises instead of answering."""
+    with pytest.raises(TypeError, match="required methods"):
+        module.run(prompt=PROMPT, tool=TOOL, api_keys={"gemini_api_key": GEMINI_KEY})
+    genai_client.models.generate_content.assert_not_called()
