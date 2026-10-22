@@ -98,7 +98,7 @@ tomte_dep_pin = "==0.7.3"
 # upstream `packages/valory/skills/.../tests/` (abstract_round_abci,
 # task_execution) whose handler-log assertions and tendermint-binary
 # deps don't apply downstream.
-pytest_targets = ["tests"]
+pytest_targets = ["tests", "packages/agents_fun/customs"]
 
 [tool.uv.build-backend]
 module-name = ["packages"]

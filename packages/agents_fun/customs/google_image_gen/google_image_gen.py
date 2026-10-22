@@ -40,8 +40,25 @@ MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 # Served through the Interactions API; must match ``default_model`` in component.yaml.
 DEFAULT_MODEL = "gemini-nano-banana-2.1"
 IMAGE_SIZE = "1K"
-# USD per generated image at each size, ai.google.dev/gemini-api/docs/pricing.
-IMAGE_COST_USD = {"1K": 0.0336, "2K": 0.0504, "4K": 0.113}
+# USD per generated image by model and size, ai.google.dev/gemini-api/docs/pricing.
+# A request may name any image model the mech passes through; one that is not
+# listed here reports no charge, and the mech falls back to the floor or cap.
+IMAGE_COST_USD = {
+    "gemini-nano-banana-2.1": {"1K": 0.0336, "2K": 0.0504, "4K": 0.113},
+    "gemini-3.1-flash-lite-image": {"1K": 0.0336},
+    "gemini-3.1-flash-image": {"0.5K": 0.045, "1K": 0.067, "2K": 0.101, "4K": 0.151},
+    "gemini-3-pro-image": {"1K": 0.134, "2K": 0.134, "4K": 0.24},
+}
+
+
+def image_cost_usd(model_name: Optional[str], size: str) -> float:
+    """The list price of one image from ``model_name`` at ``size``, 0 when unknown.
+
+    :param model_name: the image model the request named.
+    :param size: the requested image size.
+    :return: the USD price, or 0 for a model or size without a listed price.
+    """
+    return IMAGE_COST_USD.get(str(model_name), {}).get(size, 0.0)
 
 
 def record_api_cost(
@@ -191,7 +208,9 @@ def _generate_image_from_google_api(
             counter_callback,
         )
     # A generated image is billed per image, not per token.
-    record_api_cost(counter_callback, str(model_name), IMAGE_COST_USD[IMAGE_SIZE])
+    record_api_cost(
+        counter_callback, str(model_name), image_cost_usd(model_name, IMAGE_SIZE)
+    )
     return base64.b64decode(encoded), None
 
 

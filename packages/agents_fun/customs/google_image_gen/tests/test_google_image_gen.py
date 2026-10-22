@@ -33,6 +33,7 @@ from packages.agents_fun.customs.google_image_gen.google_image_gen import (
     DEFAULT_MODEL,
     IMAGE_COST_USD,
     IMAGE_SIZE,
+    image_cost_usd,
     run,
 )
 
@@ -112,7 +113,9 @@ def test_run_uses_nano_banana_and_reports_the_per_image_price() -> None:
         "type": "image",
         "image_size": IMAGE_SIZE,
     }
-    assert recorder.charges() == [(DEFAULT_MODEL, IMAGE_COST_USD[IMAGE_SIZE])]
+    assert recorder.charges() == [
+        (DEFAULT_MODEL, IMAGE_COST_USD[DEFAULT_MODEL][IMAGE_SIZE])
+    ]
 
 
 def test_the_component_default_model_is_the_served_one() -> None:
@@ -141,6 +144,50 @@ def test_run_uses_the_model_the_mech_passes() -> None:
             counter_callback=recorder,
         )
     assert client.interactions.create.call_args.kwargs["model"] == DEFAULT_MODEL
+
+
+def test_another_listed_model_is_charged_at_its_own_price() -> None:
+    """The charge follows the model the request named, not the default."""
+    recorder = _CostRecorder()
+    client = _client_returning(_png_bytes())
+    ipfs = MagicMock()
+    ipfs.add.return_value = (None, IMAGE_HASH, None)
+    with (
+        patch.object(module.genai, "Client", return_value=client),
+        patch.object(module, "IPFSTool", return_value=ipfs),
+    ):
+        run(
+            prompt=PROMPT,
+            tool="google_image_gen",
+            model="gemini-3-pro-image",
+            api_keys=_api_keys(gemini_api_key="gk"),
+            counter_callback=recorder,
+        )
+    assert recorder.charges() == [("gemini-3-pro-image", 0.134)]
+    assert image_cost_usd("gemini-3-pro-image", IMAGE_SIZE) == 0.134
+
+
+def test_an_unlisted_model_reports_no_charge() -> None:
+    """A model without a listed price reports nothing, so the mech falls back to floor or cap."""
+    recorder = _CostRecorder()
+    client = _client_returning(_png_bytes())
+    ipfs = MagicMock()
+    ipfs.add.return_value = (None, IMAGE_HASH, None)
+    with (
+        patch.object(module.genai, "Client", return_value=client),
+        patch.object(module, "IPFSTool", return_value=ipfs),
+    ):
+        result, _, _, callback, _ = run(
+            prompt="x",
+            tool="google_image_gen",
+            model="some-future-image-model",
+            api_keys=_api_keys(gemini_api_key="gk"),
+            counter_callback=recorder,
+        )
+    assert json.loads(result)["image_hash"] == IMAGE_HASH
+    assert callback is recorder
+    assert recorder.charges() == []
+    assert image_cost_usd("some-future-image-model", IMAGE_SIZE) == 0.0
 
 
 def test_run_charges_nothing_when_no_image_comes_back() -> None:
