@@ -53,21 +53,8 @@ def _create_error_response(error_msg: str, **kwargs: Any) -> MechResponse:
     return error_msg, prompt_val, None, callback_val, None
 
 
-def _handle_rate_limit_error(
-    e: Exception, service: str, retries_left: Dict[str, int], api_keys: Any
-) -> None:
-    if retries_left.get(service, 0) <= 0:
-        print(f"No retries left for service: {service}")
-        raise e
-    retries_left[service] -= 1
-    print(
-        f"Rate limit error for {service}. Retries left: {retries_left[service]}. Rotating key."
-    )
-    api_keys.rotate(service)
-
-
 def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
-    """Wrap function with API key rotation logic."""
+    """Append the keychain to the result. Recraft has a single key, so nothing rotates."""
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> MechResponse:
@@ -75,22 +62,8 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
         validation_error = _validate_api_keys(api_keys)
         if validation_error:
             return _create_error_response(validation_error, **kwargs)
-        _ = api_keys.max_retries()
-
-        def execute() -> MechResponse:
-            try:
-                result = func(*args, **kwargs)
-                return result + (api_keys,)
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                print(f"An unexpected error occurred: {e}")
-                error_response = str(e)
-                prompt_value = kwargs.get(
-                    "prompt", "Prompt not available in error context"
-                )
-                callback_value = kwargs.get("counter_callback", None)
-                return error_response, prompt_value, None, callback_value, api_keys
-
-        return execute()
+        result = func(*args, **kwargs)
+        return result + (api_keys,)
 
     return wrapper
 
@@ -119,27 +92,21 @@ def _extract_image_url_from_response(response: Any) -> Optional[str]:
     return None
 
 
-def _download_image(image_url: str) -> Optional[bytes]:
+def _download_image(image_url: str) -> bytes:
     """Download an image from a URL."""
-    try:
-        resp = requests.get(image_url, timeout=30)
-        resp.raise_for_status()
-        return resp.content
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"Failed to download image: {e}")
-        return None
+    resp = requests.get(image_url, timeout=30)
+    resp.raise_for_status()
+    return resp.content
 
 
-def _process_image_and_upload(image_data: bytes) -> Tuple[Optional[str], Optional[str]]:
+def _process_image_and_upload(image_data: bytes) -> str:
     image = Image.open(BytesIO(image_data), formats=("PNG", "JPEG", "WEBP"))
     temp_image_path = f"temp_generated_image_{os.getpid()}.png"
     try:
         image.save(temp_image_path)
         ipfs_tool = IPFSTool()
         _, image_hash, _ = ipfs_tool.add(temp_image_path)
-        return image_hash, None
-    except FileNotFoundError:
-        return None, "IPFS tool not found or not configured correctly."
+        return image_hash
     finally:
         if os.path.exists(temp_image_path):
             os.remove(temp_image_path)
@@ -163,26 +130,12 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
     if validation_error:
         return validation_error, prompt, None, counter_callback
 
-    try:
-        response = _generate_content(prompt, style, api_key)
-        print("[DEBUG] Raw response from Recraft API:", response)
-        image_url = _extract_image_url_from_response(response)
-        if image_url is None:
-            return (
-                "No image URL found in response.data[0].url.",
-                prompt,
-                None,
-                counter_callback,
-            )
-        image_bytes = _download_image(image_url)
-        if image_bytes is None:
-            return "Failed to download image from URL.", prompt, None, counter_callback
-        image_hash, upload_error = _process_image_and_upload(image_bytes)
-        if upload_error:
-            return upload_error, prompt, None, counter_callback
-        assert image_hash is not None
-        result = _prepare_result(image_hash, prompt, style)
-        return result, prompt, None, counter_callback
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"An unexpected error occurred: {e}")
-        return f"An error occurred: {e}", prompt, None, counter_callback
+    response = _generate_content(prompt, style, api_key)
+    print("[DEBUG] Raw response from Recraft API:", response)
+    image_url = _extract_image_url_from_response(response)
+    if image_url is None:
+        raise ValueError("No image URL found in response.data[0].url.")
+    image_bytes = _download_image(image_url)
+    image_hash = _process_image_and_upload(image_bytes)
+    result = _prepare_result(image_hash, prompt, style)
+    return result, prompt, None, counter_callback

@@ -23,7 +23,7 @@ import json
 import re
 import time
 from datetime import date
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import openai
 import requests
@@ -37,10 +37,6 @@ MechResponseWithKeys = Tuple[
 MechResponse = Tuple[
     str, Optional[str], Optional[Dict[str, Any]], Any, Optional[Dict[str, Any]]
 ]
-MaxCostResponse = float
-
-N_MODEL_CALLS = 1
-DEFAULT_DELIVERY_RATE = 100
 
 
 # ---------------------------------------------------------------------------
@@ -146,22 +142,16 @@ def with_key_rotation(func: Callable) -> Callable:
     """
 
     @functools.wraps(func)
-    def wrapper(
-        *args: Any, **kwargs: Any
-    ) -> Union[MaxCostResponse, MechResponseWithKeys]:
+    def wrapper(*args: Any, **kwargs: Any) -> MechResponseWithKeys:
         # this is expected to be a KeyChain object,
         # although it is not explicitly typed as such
         api_keys = kwargs["api_keys"]
         retries_left: Dict[str, int] = api_keys.max_retries()
 
-        def execute() -> Union[MaxCostResponse, MechResponseWithKeys]:
+        def execute() -> MechResponseWithKeys:
             """Retry the function with a new key."""
             try:
                 result = func(*args, **kwargs)
-                # Max-cost path returns a float; pass through without appending
-                # api_keys (tuple concatenation would fail).
-                if isinstance(result, float):
-                    return result
                 return result + (api_keys,)
             except openai.RateLimitError as e:
                 # try with a new key again
@@ -172,8 +162,6 @@ def with_key_rotation(func: Callable) -> Callable:
                 api_keys.rotate("openai")
                 api_keys.rotate("openrouter")
                 return execute()
-            except Exception as e:
-                return str(e), "", None, None, None, api_keys
 
         mech_response = execute()
         return mech_response
@@ -339,8 +327,10 @@ def _parse_completion(
     :param delay: delay in seconds between retries.
     :param counter_callback: optional callback tracking token usage.
     :return: tuple of (parsed model instance, counter_callback).
+    :raises RateLimitError: if the last attempt was rate limited, so the caller can rotate keys.
     :raises RuntimeError: if all retries exhausted without a successful parse.
     """
+    last_error: Optional[Exception] = None
     attempt = 0
     while attempt < retries:
         try:
@@ -382,10 +372,15 @@ def _parse_completion(
             #   - ValueError — covers pydantic ValidationError (e.g. p_yes+p_no
             #     sum check) and the inline "Model refused…" raise above
             print(f"[superforcaster] Attempt {attempt + 1} failed: {e}")
+            last_error = e
             time.sleep(delay)
             attempt += 1
 
-    raise RuntimeError("Failed to get structured LLM completion after retries")
+    if isinstance(last_error, openai.RateLimitError):
+        raise last_error
+    raise RuntimeError(
+        "Failed to get structured LLM completion after retries"
+    ) from last_error
 
 
 def fetch_additional_sources(question: Any, serper_api_key: Any) -> requests.Response:
@@ -448,7 +443,7 @@ def extract_question(prompt: str) -> str:
 
 
 @with_key_rotation
-def run(**kwargs: Any) -> Union[MaxCostResponse, MechResponse]:
+def run(**kwargs: Any) -> MechResponse:
     """Run the task"""
     tool = kwargs["tool"]
     if tool not in ALLOWED_TOOLS:
@@ -458,21 +453,9 @@ def run(**kwargs: Any) -> Union[MaxCostResponse, MechResponse]:
     if model is None:
         raise ValueError("Model not supplied.")
 
-    delivery_rate = int(kwargs.get("delivery_rate", DEFAULT_DELIVERY_RATE))
     counter_callback: Optional[Callable[..., Any]] = kwargs.get(
         "counter_callback", None
     )
-    if delivery_rate == 0:
-        if not counter_callback:
-            raise ValueError(
-                "A delivery rate of `0` was passed, but no counter callback was given to calculate the max cost with."
-            )
-
-        max_cost = counter_callback(
-            max_cost=True,
-            models_calls=(model,) * N_MODEL_CALLS,
-        )
-        return max_cost
 
     openai_api_key = kwargs["api_keys"]["openai"]
     source_content = kwargs.get("source_content", None)

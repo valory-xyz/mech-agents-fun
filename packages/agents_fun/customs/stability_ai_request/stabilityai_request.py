@@ -107,8 +107,6 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 retries_left[service] -= 1
                 api_keys.rotate(service)
                 return execute()
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                return str(e), "", None, None, api_keys
 
         mech_response = execute()
         return mech_response
@@ -193,11 +191,9 @@ def run(  # pylint: disable=too-many-locals
         json=json_params,
         timeout=30,
     )
-    if response.status_code == 200:
-        return json.dumps(response.json()), None, None, None
-    return (
-        f"Error: Non-200 response ({response.status_code}): {response.text}",
-        None,
-        None,
-        None,
-    )
+    if response.status_code != 200:
+        raise requests.HTTPError(
+            f"Non-200 response ({response.status_code}): {response.text}",
+            response=response,
+        )
+    return json.dumps(response.json()), None, None, None

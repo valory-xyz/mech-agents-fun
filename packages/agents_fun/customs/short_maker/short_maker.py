@@ -99,8 +99,6 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 retries_left[service] -= 1
                 api_keys.rotate(service)
                 return execute()
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                return str(e), "", None, None, api_keys
 
         mech_response = execute()
         return mech_response
@@ -164,7 +162,7 @@ def get_audio_prompts(user_input: str, engine: str = "gpt-3.5-turbo") -> Dict[st
 
 def get_shot_prompts(
     user_input: str, voiceover_length: float, engine: str = "gpt-3.5-turbo"
-) -> Optional[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """Send a prompt to OpenAI API and return video shot prompts as JSON."""
 
     # Calculate the number of shots needed
@@ -187,25 +185,21 @@ def get_shot_prompts(
     # Close the JSON structure
     message["content"] = message["content"].strip(",\n") + "\n}"
 
-    try:
-        # Send the message to the chat completions endpoint
-        assert client is not None, "OpenAI client not initialized"
-        response = client.chat.completions.create(
-            model=engine, messages=[message]  # type: ignore[list-item]
-        )
+    # Send the message to the chat completions endpoint
+    assert client is not None, "OpenAI client not initialized"
+    response = client.chat.completions.create(
+        model=engine, messages=[message]  # type: ignore[list-item]
+    )
 
-        # Parse the JSON content from the response
-        content = response.choices[0].message.content
-        assert content is not None, "Response content is None"
+    # Parse the JSON content from the response
+    content = response.choices[0].message.content
+    assert content is not None, "Response content is None"
 
-        # Load the content as a JSON object to ensure proper JSON formatting
-        json_object = json.loads(content)
+    # Load the content as a JSON object to ensure proper JSON formatting
+    json_object = json.loads(content)
 
-        print(f"Shot Prompts: {json_object}")
-        return json_object
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"An error occurred: {e}")
-        return None
+    print(f"Shot Prompts: {json_object}")
+    return json_object
 
 
 def process_voiceover(replicate_client: ReplicateClient, text: str, voice: str) -> str:
@@ -265,37 +259,29 @@ def generate_images_with_dalle(
     """Use shot prompts to generate images from DALL-E for video generation."""
     generated_images = {}
     for shot_number, prompt in shot_prompts.items():
-        try:
-            json_params = dict(
-                model=engine,
-                prompt=prompt,
-                size="1024x1024",
-                n=number_of_images,
-            )
-            response = requests.post(
-                "https://api.openai.com/v1/images/generations",
-                headers={
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "Authorization": f"Bearer {api_key}",
-                    "Stability-Client-ID": "mechs-tool",
-                },
-                json=json_params,
-                timeout=30,
-            )
-            response.raise_for_status()
-            body = response.json()
-            if body["data"] and len(body["data"]) > 0:
-                image_url = body["data"][0]["url"]
-                generated_images[shot_number] = image_url
-            else:
-                generated_images[shot_number] = "No image data in response"
-
-            print(f"Generated image for {shot_number}: {generated_images[shot_number]}")
-
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            print(f"Error generating image for {shot_number}: {e}")
-            generated_images[shot_number] = str(e)
+        json_params = dict(
+            model=engine,
+            prompt=prompt,
+            size="1024x1024",
+            n=number_of_images,
+        )
+        response = requests.post(
+            "https://api.openai.com/v1/images/generations",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Authorization": f"Bearer {api_key}",
+                "Stability-Client-ID": "mechs-tool",
+            },
+            json=json_params,
+            timeout=30,
+        )
+        response.raise_for_status()
+        body = response.json()
+        if not body.get("data"):
+            raise ValueError(f"No image data in response for {shot_number}.")
+        generated_images[shot_number] = body["data"][0]["url"]
+        print(f"Generated image for {shot_number}: {generated_images[shot_number]}")
 
     return generated_images
 
@@ -465,7 +451,6 @@ def run(  # pylint: disable=too-many-locals
     # Step 5: Get shot prompts
     print("Getting shot prompts...")
     shot_prompts = get_shot_prompts(user_input, voiceover_length)
-    assert shot_prompts is not None, "Failed to get shot prompts"
 
     # Step 6: Generate images with DALL-E
     print("Generating images with DALL-E...")
@@ -483,6 +468,8 @@ def run(  # pylint: disable=too-many-locals
         )
         if url is not None
     ]
+    if not video_urls:
+        raise ValueError("No video shot could be generated.")
 
     # Step 9: Process soundtrack
     soundtrack_prompt = audio_prompts["soundtrack_prompt"]

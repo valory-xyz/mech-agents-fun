@@ -121,14 +121,6 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 retries_left[service] -= 1
                 api_keys.rotate(service)
                 return execute()
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                print(f"An unexpected error occurred: {e}")
-                error_response = str(e)
-                prompt_value = kwargs.get(
-                    "prompt", "Prompt not available in error context"
-                )
-                callback_value = kwargs.get("counter_callback", None)
-                return error_response, prompt_value, None, callback_value, api_keys
 
         return execute()
 
@@ -524,13 +516,6 @@ def run(  # pylint: disable=too-many-locals
 
         result_data = {"audio_hash": audio_hash, "prompt": prompt, "model": model_name}
         return json.dumps(result_data), prompt, None, counter_callback
-
-    except google_exceptions.GoogleAPIError as e:
-        print(f"Google API error: {e}")
-        return f"Google API error: {e}", prompt, None, counter_callback
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"An unexpected error occurred: {e}")
-        return f"An error occurred: {e}", prompt, None, counter_callback
     finally:
         for f in temp_files:
             if os.path.exists(f):

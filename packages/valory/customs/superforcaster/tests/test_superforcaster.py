@@ -24,7 +24,9 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import openai
 import pytest
+import requests
 
 import packages.valory.customs.superforcaster.superforcaster as module
 from packages.valory.customs.superforcaster.superforcaster import (
@@ -312,3 +314,123 @@ class TestSuperforcasterSourceContent:
 
         used_params = result[4]
         assert "source_content" not in used_params
+
+
+HTTP_TOO_MANY_REQUESTS = 429
+HTTP_UNAUTHORIZED = 401
+MODEL = "gpt-4.1-2025-04-14"
+
+
+class _FakeKeyChain(dict):
+    """A KeyChain stand-in that records every rotation."""
+
+    def __init__(self, retries: int) -> None:
+        """Store one key per service and the retry budget."""
+        super().__init__(
+            openai="sk-test", openrouter="or-test", serperapi="serper-test"
+        )
+        self._retries = {"openai": retries, "openrouter": retries}
+        self.rotated: list = []
+
+    def max_retries(self) -> dict:
+        """Return a copy of the retry budget."""
+        return dict(self._retries)
+
+    def rotate(self, service_name: str) -> None:
+        """Record the rotation."""
+        self.rotated.append(service_name)
+
+
+def _openai_error(error_cls: type, status_code: int) -> Exception:
+    """Build an OpenAI SDK status error."""
+    response = MagicMock(status_code=status_code, headers={})
+    return error_cls("provider error", response=response, body=None)
+
+
+class TestFailedRunRaises:
+    """A failed run raises, so the mech can reject it instead of charging."""
+
+    @pytest.fixture
+    def parse(self, monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+        """Patch the OpenAI client, the Serper HTTP call and the retry sleep."""
+        client = MagicMock()
+        monkeypatch.setattr(module, "OpenAI", MagicMock(return_value=client))
+        serper = MagicMock()
+        serper.json.return_value = FAKE_SERPER_RESPONSE
+        monkeypatch.setattr(module.requests, "request", MagicMock(return_value=serper))
+        monkeypatch.setattr(module.time, "sleep", MagicMock())
+        return client.beta.chat.completions.parse
+
+    def _run(self, api_keys: _FakeKeyChain, **extra: object) -> tuple:
+        """Call the tool entry point."""
+        return run(
+            tool="superforcaster",
+            model=MODEL,
+            prompt=PREDICTION_PROMPT,
+            api_keys=api_keys,
+            **extra,
+        )
+
+    def test_non_retryable_llm_error_propagates(self, parse: MagicMock) -> None:
+        """An OpenAI error outside the retry set propagates out of run."""
+        parse.side_effect = _openai_error(openai.AuthenticationError, HTTP_UNAUTHORIZED)
+        api_keys = _FakeKeyChain(retries=1)
+        with pytest.raises(openai.AuthenticationError):
+            self._run(api_keys)
+        assert api_keys.rotated == []
+
+    def test_search_network_error_propagates(self, parse: MagicMock) -> None:
+        """A Serper network failure propagates out of run."""
+        module.requests.request.side_effect = requests.ConnectionError("down")
+        with pytest.raises(requests.ConnectionError):
+            self._run(_FakeKeyChain(retries=1))
+        parse.assert_not_called()
+
+    def test_exhausted_completion_retries_raise_runtime_error(
+        self, parse: MagicMock
+    ) -> None:
+        """Repeated unparseable output ends in RuntimeError, not an answer."""
+        parse.side_effect = [ValueError("bad output")] * module.COMPLETION_RETRIES
+        with pytest.raises(RuntimeError, match="after retries"):
+            self._run(_FakeKeyChain(retries=1))
+
+    def test_rate_limit_rotates_key_and_returns_retry_result(
+        self, parse: MagicMock
+    ) -> None:
+        """After same-key retries hit rate limits, the key rotates and the retry answers."""
+        rate_limit = _openai_error(openai.RateLimitError, HTTP_TOO_MANY_REQUESTS)
+        parse.side_effect = [rate_limit] * module.COMPLETION_RETRIES + [
+            _mock_parse_response()
+        ]
+        api_keys = _FakeKeyChain(retries=1)
+
+        result = self._run(api_keys)
+
+        assert api_keys.rotated == ["openai", "openrouter"]
+        assert json.loads(result[0])["p_yes"] == FAKE_PREDICTION.p_yes
+        assert result[-1] is api_keys
+
+    def test_rate_limit_propagates_when_no_retries_left(self, parse: MagicMock) -> None:
+        """With the retry budget spent, the rate limit propagates."""
+        rate_limit = _openai_error(openai.RateLimitError, HTTP_TOO_MANY_REQUESTS)
+        parse.side_effect = [rate_limit] * module.COMPLETION_RETRIES
+        api_keys = _FakeKeyChain(retries=0)
+        with pytest.raises(openai.RateLimitError):
+            self._run(api_keys)
+        assert api_keys.rotated == []
+
+    def test_delivery_rate_zero_runs_normally(self, parse: MagicMock) -> None:
+        """A delivery_rate of 0 is ignored: no max_cost call, a normal answer."""
+        parse.return_value = _mock_parse_response()
+        counter_callback = MagicMock()
+
+        result = self._run(
+            _FakeKeyChain(retries=1),
+            delivery_rate=0,
+            counter_callback=counter_callback,
+        )
+
+        assert isinstance(result, tuple)
+        assert json.loads(result[0])["p_no"] == FAKE_PREDICTION.p_no
+        assert all("max_cost" not in c.kwargs for c in counter_callback.call_args_list)
+        counter_callback.assert_called_once()

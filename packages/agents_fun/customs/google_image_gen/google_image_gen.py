@@ -112,14 +112,6 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 retries_left[service] -= 1
                 api_keys.rotate(service)
                 return execute()
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                print(f"An unexpected error occurred: {e}")
-                error_response = str(e)
-                prompt_value = kwargs.get(
-                    "prompt", "Prompt not available in error context"
-                )
-                callback_value = kwargs.get("counter_callback", None)
-                return error_response, prompt_value, None, callback_value, api_keys
 
         return execute()
 
@@ -149,9 +141,16 @@ def _validate_inputs(
 
 
 def _generate_image_from_google_api(
-    client: genai.Client, prompt: str, model_name: Optional[str], counter_callback: Any
-) -> Tuple[Optional[bytes], Optional[Tuple[str, str, None, Any]]]:
-    """Generates image data using the Google API and handles initial response validation."""
+    client: genai.Client, prompt: str, model_name: Optional[str]
+) -> bytes:
+    """Generate image data using the Google API.
+
+    :param client: the Google GenAI client.
+    :param prompt: the image prompt.
+    :param model_name: the Imagen model to use.
+    :return: the generated image bytes.
+    :raises ValueError: if the response carries no image bytes.
+    """
     response = client.models.generate_images(
         model=model_name,  # type: ignore[arg-type]
         prompt=prompt,
@@ -159,25 +158,17 @@ def _generate_image_from_google_api(
     )
 
     if not response.generated_images:
-        return None, (
-            "No image data found in the response (generated_images is empty).",
-            prompt,
-            None,
-            counter_callback,
+        raise ValueError(
+            "No image data found in the response (generated_images is empty)."
         )
 
     first_generated_image = response.generated_images[0]
-
-    if not hasattr(first_generated_image, "image") or not hasattr(
-        first_generated_image.image, "image_bytes"
-    ):
-        return None, (
-            "Image data structure is not as expected.",
-            prompt,
-            None,
-            counter_callback,
-        )
-    return first_generated_image.image.image_bytes, None  # type: ignore[union-attr]
+    image_bytes = getattr(
+        getattr(first_generated_image, "image", None), "image_bytes", None
+    )
+    if image_bytes is None:
+        raise ValueError("Image data structure is not as expected.")
+    return image_bytes
 
 
 def _save_image_and_upload_to_ipfs(
@@ -194,13 +185,6 @@ def _save_image_and_upload_to_ipfs(
 
         result_data = {"image_hash": image_hash, "prompt": prompt, "model": model_name}
         return json.dumps(result_data), prompt, None, counter_callback
-    except FileNotFoundError:
-        return (
-            "IPFS tool not found or not configured correctly.",
-            prompt,
-            None,
-            counter_callback,
-        )
     finally:
         if os.path.exists(temp_image_path):
             os.remove(temp_image_path)
@@ -220,32 +204,8 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
     if validation_error:
         return validation_error
 
-    try:
-        client = genai.Client(api_key=api_key)
-
-        image_data, error_response = _generate_image_from_google_api(
-            client, prompt, model_name, counter_callback
-        )
-        if error_response:
-            return error_response
-
-        if (
-            image_data is None
-        ):  # Should not happen if error_response is None, but as a safeguard
-            return (
-                "Failed to generate image data without specific error.",
-                prompt,
-                None,
-                counter_callback,
-            )
-
-        return _save_image_and_upload_to_ipfs(
-            image_data, prompt, model_name, counter_callback
-        )
-
-    except google_exceptions.GoogleAPIError as e:
-        print(f"Google API error: {e}")
-        return f"Google API error: {e}", prompt, None, counter_callback
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"An unexpected error occurred: {e}")
-        return f"An error occurred: {e}", prompt, None, counter_callback
+    client = genai.Client(api_key=api_key)
+    image_data = _generate_image_from_google_api(client, prompt, model_name)
+    return _save_image_and_upload_to_ipfs(
+        image_data, prompt, model_name, counter_callback
+    )
