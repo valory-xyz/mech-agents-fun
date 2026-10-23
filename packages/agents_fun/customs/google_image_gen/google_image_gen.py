@@ -18,6 +18,7 @@
 # ------------------------------------------------------------------------------
 """This module contains the implementation of the google_image_gen tool based on a working snippet."""
 
+import base64
 import functools
 import json
 import os
@@ -29,16 +30,54 @@ import openai
 from PIL import Image  # type: ignore[import-not-found]
 from aea_cli_ipfs.ipfs_utils import IPFSTool
 from google import genai  # type: ignore[import-not-found]
-from google.genai import errors as genai_errors  # type: ignore[import-not-found]
-from google.genai import types  # type: ignore[import-not-found]
 
 # Define MechResponse type alias matching the other tools
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
-DEFAULT_MODEL = "imagen-4.0-generate-001"
+# Served through the Interactions API; must match ``default_model`` in component.yaml.
+DEFAULT_MODEL = "gemini-nano-banana-2.1"
 HTTP_BAD_REQUEST = 400
 HTTP_TOO_MANY_REQUESTS = 429
 GEMINI_SERVICE = "gemini_api_key"
+IMAGE_SIZE = "1K"
+# USD per generated image by model and size, ai.google.dev/gemini-api/docs/pricing.
+# A request may name any image model the mech passes through; one that is not
+# listed here reports no charge, and the mech falls back to the floor or cap.
+IMAGE_COST_USD = {
+    "gemini-nano-banana-2.1": {"1K": 0.0336, "2K": 0.0504, "4K": 0.113},
+    "gemini-3.1-flash-lite-image": {"1K": 0.0336},
+    "gemini-3.1-flash-image": {"0.5K": 0.045, "1K": 0.067, "2K": 0.101, "4K": 0.151},
+    "gemini-3-pro-image": {"1K": 0.134, "2K": 0.134, "4K": 0.24},
+}
+
+
+def image_cost_usd(model_name: Optional[str], size: str) -> float:
+    """The list price of one image from ``model_name`` at ``size``, 0 when unknown.
+
+    :param model_name: the image model the request named.
+    :param size: the requested image size.
+    :return: the USD price, or 0 for a model or size without a listed price.
+    """
+    return IMAGE_COST_USD.get(str(model_name), {}).get(size, 0.0)
+
+
+def record_api_cost(
+    counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
+) -> None:
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
+    if counter_callback is None or cost_usd <= 0:
+        return
+    try:
+        counter_callback(
+            input_tokens=0,
+            output_tokens=0,
+            model=model,
+            token_counter=lambda text, model: 0,
+            call_cost=cost_usd,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"Could not report the {model} cost to the mech: {exc}")
+
 
 # Define allowed tools for this module
 ALLOWED_TOOLS = [
@@ -81,8 +120,8 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 return rotate_and_retry(e, ("anthropic",))
             except openai.RateLimitError as e:
                 return rotate_and_retry(e, ("openai", "openrouter"))
-            except genai_errors.APIError as e:
-                if e.code != HTTP_TOO_MANY_REQUESTS:
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                if _http_status(e) != HTTP_TOO_MANY_REQUESTS:
                     raise
                 return rotate_and_retry(e, (GEMINI_SERVICE,))
 
@@ -111,20 +150,38 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
     return wrapper
 
 
-def _is_request_rejection(error: genai_errors.ClientError) -> bool:
+def _http_status(error: Exception) -> Optional[int]:
+    """The HTTP status a Gemini SDK error carries, None for any other error.
+
+    Interactions API errors carry ``status_code``; ``genai.errors.APIError``
+    carries ``code``.
+
+    :param error: the raised error.
+    :return: the HTTP status, or None.
+    """
+    for attr in ("status_code", "code"):
+        status = getattr(error, attr, None)
+        if isinstance(status, int):
+            return status
+    return None
+
+
+def _is_request_rejection(error: Exception) -> bool:
     """Whether Gemini rejected the request itself, not the operator's key or account.
 
     Gemini also answers 400 for an invalid API key and for a failed
-    precondition (unsupported region, billing), which are not request faults.
+    precondition (unsupported region, billing), which are not request faults,
+    so only a 400 that names INVALID_ARGUMENT and not the API key counts.
 
-    :param error: the Google GenAI client error.
+    :param error: the raised error.
     :return: True for a 400 INVALID_ARGUMENT that is not about the API key.
     """
-    if error.code != HTTP_BAD_REQUEST or error.status != "INVALID_ARGUMENT":
+    if _http_status(error) != HTTP_BAD_REQUEST:
         return False
-    return "API_KEY_INVALID" not in str(error.details) and "API key" not in str(
-        error.message or ""
-    )
+    detail = f"{error} {getattr(error, 'body', '')} {getattr(error, 'status', '')}"
+    if "INVALID_ARGUMENT" not in detail.upper().replace("-", "_"):
+        return False
+    return "API_KEY_INVALID" not in detail and "API key" not in detail
 
 
 def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> None:
@@ -142,42 +199,40 @@ def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> None:
 
 
 def _generate_image_from_google_api(
-    client: genai.Client, prompt: str, model_name: Optional[str]
+    client: genai.Client, prompt: str, model_name: Optional[str], counter_callback: Any
 ) -> bytes:
-    """Generate image data using the Google API.
+    """Generate one image through the Interactions API and report its charge.
 
     :param client: the Google GenAI client.
     :param prompt: the image prompt.
-    :param model_name: the Imagen model to use.
+    :param model_name: the image model the request named.
+    :param counter_callback: the mech cost callback, or None outside the mech.
     :return: the generated image bytes.
     :raises InvalidRequestError: if the provider rejects the request as invalid.
-    :raises ValueError: if the response carries no image bytes.
+    :raises ValueError: if the response carries no image.
     """
     try:
-        response = client.models.generate_images(
-            model=model_name,  # type: ignore[arg-type]
-            prompt=prompt,
-            config=types.GenerateImagesConfig(number_of_images=1),
+        interaction = client.interactions.create(
+            model=model_name,
+            input=prompt,
+            response_format={"type": "image", "image_size": IMAGE_SIZE},
         )
-    except genai_errors.ClientError as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         if not _is_request_rejection(e):
             raise
         raise InvalidRequestError(
-            f"The image provider rejected the request: {e.message}"
+            f"The image provider rejected the request: {e}"
         ) from e
 
-    if not response.generated_images:
-        raise ValueError(
-            "No image data found in the response (generated_images is empty)."
-        )
-
-    first_generated_image = response.generated_images[0]
-    image_bytes = getattr(
-        getattr(first_generated_image, "image", None), "image_bytes", None
+    output_image = getattr(interaction, "output_image", None)
+    encoded = getattr(output_image, "data", None) if output_image else None
+    if not encoded:
+        raise ValueError("No image data found in the response (output_image is empty).")
+    # A generated image is billed per image, not per token.
+    record_api_cost(
+        counter_callback, str(model_name), image_cost_usd(model_name, IMAGE_SIZE)
     )
-    if image_bytes is None:
-        raise ValueError("Image data structure is not as expected.")
-    return image_bytes
+    return base64.b64decode(encoded)
 
 
 def _save_image_and_upload_to_ipfs(
@@ -212,7 +267,9 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
     _validate_inputs(tool, api_key)
 
     client = genai.Client(api_key=api_key)
-    image_data = _generate_image_from_google_api(client, prompt, model_name)
+    image_data = _generate_image_from_google_api(
+        client, prompt, model_name, counter_callback
+    )
     return _save_image_and_upload_to_ipfs(
         image_data, prompt, model_name, counter_callback
     )

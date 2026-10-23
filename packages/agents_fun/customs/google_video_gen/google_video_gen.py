@@ -73,6 +73,65 @@ class InvalidRequestError(ValueError):
     """
 
 
+# Prices are USD per million tokens from ai.google.dev/gemini-api/docs/pricing.
+# The script model thinks by default and thinking is billed at the output
+# rate. TTS output is audio tokens, 25 per second of speech; its rates are the
+# introductory ones through 2026-12-31 and the listed ones from 2027-01-01.
+SCRIPT_MODEL = "gemini-3.5-flash-lite"
+SCRIPT_INPUT_USD_PER_M = 0.30
+SCRIPT_OUTPUT_USD_PER_M = 2.50
+TTS_MODEL = "gemini-3.8-flash-lite-tts"
+TTS_RATES_UNTIL_2026 = (0.50, 6.00)
+TTS_RATES_FROM_2027 = (1.00, 12.00)
+TTS_RATE_CHANGE_TS = 1_798_761_600  # 2027-01-01T00:00:00Z
+
+
+def tts_rates(now: float) -> Tuple[float, float]:
+    """USD per million input and output TTS tokens that apply at ``now``.
+
+    :param now: a Unix timestamp.
+    :return: ``(input_per_m, output_per_m)``.
+    """
+    return TTS_RATES_FROM_2027 if now >= TTS_RATE_CHANGE_TS else TTS_RATES_UNTIL_2026
+
+
+def record_api_cost(
+    counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
+) -> None:
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
+    if counter_callback is None or cost_usd <= 0:
+        return
+    try:
+        counter_callback(
+            input_tokens=0,
+            output_tokens=0,
+            model=model,
+            token_counter=lambda text, model: 0,
+            call_cost=cost_usd,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"Could not report the {model} cost to the mech: {exc}")
+
+
+def _usage_cost_usd(response: Any, input_per_m: float, output_per_m: float) -> float:
+    """USD for a Gemini response from its usage metadata at per-million-token prices.
+
+    :param response: a ``generate_content`` response.
+    :param input_per_m: USD per million prompt tokens.
+    :param output_per_m: USD per million output (and thinking) tokens.
+    :return: the charge, 0 when the response carries no usage.
+    """
+    usage = getattr(response, "usage_metadata", None)
+    if usage is None:
+        return 0.0
+    prompt_tokens = int(getattr(usage, "prompt_token_count", 0) or 0)
+    # Thinking tokens are billed at the output rate.
+    output_tokens = int(getattr(usage, "candidates_token_count", 0) or 0) + int(
+        getattr(usage, "thoughts_token_count", 0) or 0
+    )
+    return prompt_tokens * input_per_m / 1e6 + output_tokens * output_per_m / 1e6
+
+
 def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
     """Decorator for handling API key rotation and retries."""
 
@@ -186,7 +245,8 @@ def wave_file(
 def _generate_text_with_gemini_flash(
     client: genai.Client,
     prompt: str,
-    model_name: str = "gemini-2.0-flash",
+    model_name: str = SCRIPT_MODEL,
+    counter_callback: Any = None,
 ) -> str:
     """Generates text content using the Google GenAI Flash model."""
     config = types.GenerateContentConfig(max_output_tokens=500, temperature=0.1)
@@ -198,10 +258,17 @@ def _generate_text_with_gemini_flash(
     text = response.text
     print("Raw response from _generate_text_with_gemini_flash: \n", text)
     assert text is not None, "Response text is None"
+    record_api_cost(
+        counter_callback,
+        model_name,
+        _usage_cost_usd(response, SCRIPT_INPUT_USD_PER_M, SCRIPT_OUTPUT_USD_PER_M),
+    )
     return text
 
 
-def get_audio_prompts(user_input: str, google_client: genai.Client) -> Dict[str, Any]:
+def get_audio_prompts(
+    user_input: str, google_client: genai.Client, counter_callback: Any = None
+) -> Dict[str, Any]:
     """Construct the message that includes the user input and uses Google GenAI Flash for generation."""
     # Combine system instruction and user input into a single prompt for `contents`
     full_prompt = (
@@ -214,6 +281,7 @@ def get_audio_prompts(user_input: str, google_client: genai.Client) -> Dict[str,
             raw_content = _generate_text_with_gemini_flash(
                 google_client,
                 prompt=full_prompt,
+                counter_callback=counter_callback,
             )
         except genai_errors.ClientError as e:
             if not _is_request_rejection(e):
@@ -374,75 +442,12 @@ def compose_final_video(  # pylint: disable=too-many-positional-arguments,too-ma
     return filename
 
 
-def _generate_video_from_google_api(
-    client: genai.Client, prompt: str, model_name: str
-) -> bytes:
-    """Generate video data using the Google API.
-
-    :param client: the Google GenAI client.
-    :param prompt: the video prompt.
-    :param model_name: the Veo model to use.
-    :return: the generated video bytes.
-    :raises ValueError: if the response carries no video.
-    """
-    operation = client.models.generate_videos(
-        model=model_name,
-        prompt=prompt,
-        config=types.GenerateVideosConfig(
-            person_generation="allow_adult",
-            aspect_ratio="16:9",
-        ),
-    )
-
-    print("Waiting for video generation operation to complete...")
-    while not operation.done:
-        time.sleep(20)
-        print(
-            "Waiting for video generation operation to complete... will check again in 20 seconds"
-        )
-        operation = client.operations.get(operation)
-
-    result = operation.result
-    print(f"Video generation operation result: {result}")
-    if result is None or not result.generated_videos:
-        raise ValueError(
-            "No video data found in the response (generated_videos is empty)."
-        )
-
-    video_file = result.generated_videos[0].video
-    assert video_file is not None, "Video file is None"
-
-    # Download the video content
-    print(f"Downloading video file from URI: {video_file.uri}")
-    client.files.download(file=video_file)
-    video_bytes = video_file.video_bytes
-    if video_bytes is None:
-        raise ValueError("Downloaded video has no bytes.")
-    return video_bytes
-
-
-def _save_video_and_upload_to_ipfs(
-    video_data: bytes, prompt: str, model_name: str, counter_callback: Any
-) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, str]:
-    """Saves the video data to a temporary file, uploads to IPFS, and returns the path."""
-    temp_video_path = f"temp_generated_video_{os.getpid()}.mp4"
-    with open(temp_video_path, "wb") as f:
-        f.write(video_data)
-
-    ipfs_tool = IPFSTool()
-    _, video_hash, _ = ipfs_tool.add(temp_video_path, wrap_with_directory=False)
-
-    result_data = {"video_hash": video_hash, "prompt": prompt, "model": model_name}
-    # The `temp_video_path` is returned to be used for video merging.
-    return json.dumps(result_data), prompt, None, counter_callback, temp_video_path
-
-
 def _generate_audio_with_gemini_tts(
-    client: genai.Client, text: str, voice_name: str
+    client: genai.Client, text: str, voice_name: str, counter_callback: Any = None
 ) -> bytes:
     """Generates audio data using the Google GenAI TTS API."""
     response = client.models.generate_content(
-        model="gemini-2.5-flash-preview-tts",
+        model=TTS_MODEL,
         contents=text,
         config=types.GenerateContentConfig(
             response_modalities=["AUDIO"],
@@ -465,6 +470,11 @@ def _generate_audio_with_gemini_tts(
     assert inline_data is not None, "Inline data is None"
     data = inline_data.data
     assert data is not None, "Inline data bytes is None"
+    record_api_cost(
+        counter_callback,
+        TTS_MODEL,
+        _usage_cost_usd(response, *tts_rates(time.time())),
+    )
     return data
 
 
@@ -478,7 +488,7 @@ def run(  # pylint: disable=too-many-locals
     google_api_key = api_keys.get(GEMINI_SERVICE, None)
     tool = kwargs.get("tool")
     counter_callback = kwargs.get("counter_callback", None)
-    model_name = "veo-2.0-generate-001"
+    model_name = TTS_MODEL
 
     _validate_inputs(tool, google_api_key)
 
@@ -494,7 +504,9 @@ def run(  # pylint: disable=too-many-locals
         # Step 2: Get audio prompts from OpenAI
         try:
             audio_prompts = get_audio_prompts(
-                user_input=prompt, google_client=google_client
+                user_input=prompt,
+                google_client=google_client,
+                counter_callback=counter_callback,
             )
             voiceover_script = audio_prompts["voiceover_script"]
             voice_choice = audio_prompts["voice"]
@@ -509,7 +521,7 @@ def run(  # pylint: disable=too-many-locals
         try:
             voice_name = voice_choice  # Use the voice chosen by the model
             audio_bytes = _generate_audio_with_gemini_tts(
-                google_client, voiceover_script, voice_name
+                google_client, voiceover_script, voice_name, counter_callback
             )
             voiceover_filename = f"{file_prefix}_voiceover.wav"
             wave_file(voiceover_filename, audio_bytes)

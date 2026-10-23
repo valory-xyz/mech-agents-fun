@@ -41,6 +41,31 @@ DEFAULT_STYLE = "realistic_image"
 # tool cannot store as an image; only raster styles are served.
 RASTER_STYLES = ("realistic_image", "digital_illustration", "logo_raster")
 
+# Pinned so the charge does not move with Recraft's server-side default, and
+# on V3 because the ``style`` values this tool accepts (``realistic_image``
+# and the other named styles) are defined for V2/V3; V4 takes ``any``.
+RECRAFT_MODEL = "recraftv3"
+# USD per raster image for RECRAFT_MODEL, recraft.ai/docs/api-reference/pricing.
+RECRAFT_COST_PER_IMAGE_USD = 0.04
+
+
+def record_api_cost(
+    counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
+) -> None:
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
+    if counter_callback is None or cost_usd <= 0:
+        return
+    try:
+        counter_callback(
+            input_tokens=0,
+            output_tokens=0,
+            model=model,
+            token_counter=lambda text, model: 0,
+            call_cost=cost_usd,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"Could not report the {model} cost to the mech: {exc}")
+
 
 class InvalidRequestError(ValueError):
     """The request cannot be served as sent: the fault is in the buyer's input.
@@ -104,7 +129,9 @@ def _generate_content(prompt: str, style: str, api_key: str) -> Any:
         api_key=api_key,
     )
     try:
-        return client.images.generate(prompt=prompt, style=style)  # type: ignore[arg-type]
+        return client.images.generate(
+            model=RECRAFT_MODEL, prompt=prompt, style=style  # type: ignore[arg-type]
+        )
     except BadRequestError as e:
         raise InvalidRequestError(
             f"The image provider rejected the request: {e.message}"
@@ -159,6 +186,7 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
     image_url = _extract_image_url_from_response(response)
     if image_url is None:
         raise ValueError("No image URL found in response.data[0].url.")
+    record_api_cost(counter_callback, RECRAFT_MODEL, RECRAFT_COST_PER_IMAGE_USD)
     image_bytes = _download_image(image_url)
     image_hash = _process_image_and_upload(image_bytes)
     result = _prepare_result(image_hash, prompt, style)

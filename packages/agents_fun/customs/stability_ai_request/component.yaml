@@ -6,8 +6,10 @@ description: A tool that runs a prompt against StabilityAI.
 license: Apache-2.0
 aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
-  __init__.py: bafybeibbn67pnrrm4qm3n3kbelvbs3v7fjlrjniywmw2vbizarippidtvi
-  stabilityai_request.py: bafybeig74w6e4pfk4casyvu52hn7e3tsaw43xhnlx6hkhr3kbi4dnc2p34
+  __init__.py: bafybeidzmu6it3wnqu36ajgbvovqfvvigvdlnhrjbpjfbwwtxlbl4wzply
+  stabilityai_request.py: bafybeigmj2jjwu7fxcowxhif3xgw4wi4fms2skuwsplanjb5gwajapvgxe
+  tests/__init__.py: bafybeihqwsfvnuk7gadorvmciavy76lqcu2gdjw3em2j5dvgdhtjwbtzgu
+  tests/test_stabilityai_request.py: bafybeidwstnvsa5rtek5etes3e5rsrbqs55dl3znjjnpfjnhanjimn2yka
 fingerprint_ignore_patterns: []
 entry_point: stabilityai_request.py
 callable: run

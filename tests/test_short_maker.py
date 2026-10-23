@@ -19,11 +19,16 @@
 
 """Unit tests for short_maker failure handling."""
 
+import base64
 import json
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock
 
+import httpx
+import openai
 import pytest
-import requests
 
 from packages.agents_fun.customs.short_maker import short_maker as module
 
@@ -43,21 +48,25 @@ RETRY_RESULT = ("retry answer", PROMPT, None, None)
 
 
 @pytest.fixture
-def chat(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+def openai_client(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Patch the OpenAI and Replicate client boundaries."""
     client = MagicMock()
     monkeypatch.setattr(module, "OpenAI", MagicMock(return_value=client))
     monkeypatch.setattr(module, "client", client)
     monkeypatch.setattr(module, "ReplicateClient", MagicMock())
-    return client.chat.completions.create
+    return client
 
 
 @pytest.fixture
-def post(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Patch the HTTP boundary to the DALL-E endpoint."""
-    mock_post = MagicMock()
-    monkeypatch.setattr(module.requests, "post", mock_post)
-    return mock_post
+def chat(openai_client: MagicMock) -> MagicMock:
+    """The chat completions call of the patched OpenAI client."""
+    return openai_client.chat.completions.create
+
+
+@pytest.fixture
+def images(openai_client: MagicMock) -> MagicMock:
+    """The image generation call of the patched OpenAI client."""
+    return openai_client.images.generate
 
 
 def _api_keys() -> FakeKeyChain:
@@ -109,50 +118,70 @@ def test_get_shot_prompts_raises_on_provider_error(chat: MagicMock) -> None:
         module.get_shot_prompts(PROMPT, VOICEOVER_SECONDS)
 
 
-GOOD_IMAGE_URL = "https://images.test/shot.png"
+IMAGE_BYTES = b"png-bytes"
 TWO_SHOT_PROMPTS = {"shot1_prompt": "wide shot", "shot2_prompt": "close up"}
 
 
-def _image_response(url: str = GOOD_IMAGE_URL) -> MagicMock:
-    """Build a DALL-E answer carrying one image."""
-    return MagicMock(json=MagicMock(return_value={"data": [{"url": url}]}))
+def _image_response(data: Any = IMAGE_BYTES) -> SimpleNamespace:
+    """Build an image API answer carrying one base64 image, or ``data`` as given."""
+    encoded = base64.b64encode(data).decode() if isinstance(data, bytes) else data
+    return SimpleNamespace(data=[SimpleNamespace(b64_json=encoded)], usage=None)
+
+
+def _image_timeout() -> openai.APITimeoutError:
+    """Build the error the OpenAI SDK raises when the image call times out."""
+    return openai.APITimeoutError(
+        request=httpx.Request("POST", "https://api.openai.com/v1/images/generations")
+    )
 
 
 FAILED_SHOT_RESPONSES = [
-    MagicMock(raise_for_status=MagicMock(side_effect=requests.HTTPError("429"))),
-    MagicMock(json=MagicMock(return_value={"data": []})),
-    MagicMock(json=MagicMock(return_value={})),
-    MagicMock(json=MagicMock(return_value={"data": [{}]})),
-    MagicMock(json=MagicMock(side_effect=requests.JSONDecodeError("bad", "", 0))),
+    SimpleNamespace(data=[], usage=None),
+    SimpleNamespace(data=None, usage=None),
+    _image_response(None),
+    _image_response(""),
+    _image_response("not base64!"),
 ]
 
 
 @pytest.mark.parametrize("failed", FAILED_SHOT_RESPONSES)
 def test_generate_images_skips_a_failed_shot(
-    post: MagicMock, failed: MagicMock
+    images: MagicMock, failed: SimpleNamespace, tmp_path: Path
 ) -> None:
     """A failed or empty shot is left out and the other shots are kept."""
-    post.side_effect = [failed, _image_response()]
-    images = module.generate_images_with_dalle(TWO_SHOT_PROMPTS, OPENAI_KEY)
-    assert images == {"shot2_prompt": GOOD_IMAGE_URL}
+    images.side_effect = [failed, _image_response()]
+    paths = module.generate_images(TWO_SHOT_PROMPTS, str(tmp_path))
+    assert list(paths) == ["shot2_prompt"]
+    assert Path(paths["shot2_prompt"]).read_bytes() == IMAGE_BYTES
 
 
-def test_generate_images_skips_a_request_error(post: MagicMock) -> None:
+def test_generate_images_skips_a_request_error(
+    images: MagicMock, tmp_path: Path
+) -> None:
     """A shot whose request fails outright is left out."""
-    post.side_effect = [requests.Timeout("slow"), _image_response()]
-    images = module.generate_images_with_dalle(TWO_SHOT_PROMPTS, OPENAI_KEY)
-    assert images == {"shot2_prompt": GOOD_IMAGE_URL}
+    images.side_effect = [_image_timeout(), _image_response()]
+    paths = module.generate_images(TWO_SHOT_PROMPTS, str(tmp_path))
+    assert list(paths) == ["shot2_prompt"]
+
+
+def test_generate_images_raises_on_an_unexpected_error(
+    images: MagicMock, tmp_path: Path
+) -> None:
+    """An error outside the provider and data failures is a tool fault and propagates."""
+    images.side_effect = RuntimeError("bug")
+    with pytest.raises(RuntimeError, match="bug"):
+        module.generate_images(TWO_SHOT_PROMPTS, str(tmp_path))
 
 
 @pytest.mark.parametrize("failed", FAILED_SHOT_RESPONSES)
 def test_generate_images_raises_when_no_shot_has_an_image(
-    post: MagicMock, failed: MagicMock
+    images: MagicMock, failed: SimpleNamespace, tmp_path: Path
 ) -> None:
     """With every shot failed there is nothing to build a video from."""
-    post.return_value = failed
+    images.return_value = failed
     with pytest.raises(ValueError, match="No shot image"):
-        module.generate_images_with_dalle(TWO_SHOT_PROMPTS, OPENAI_KEY)
-    assert post.call_count == len(TWO_SHOT_PROMPTS)
+        module.generate_images(TWO_SHOT_PROMPTS, str(tmp_path))
+    assert images.call_count == len(TWO_SHOT_PROMPTS)
 
 
 COMPLETE_AUDIO_PROMPTS = {
@@ -174,9 +203,9 @@ def _chat_answer(content: dict) -> MagicMock:
 )
 @pytest.mark.parametrize("bad_value", [None, "", 7])
 def test_incomplete_audio_prompts_raise_before_paid_steps(
-    chat: MagicMock, post: MagicMock, missing_key: str, bad_value: object
+    chat: MagicMock, images: MagicMock, missing_key: str, bad_value: object
 ) -> None:
-    """A missing or empty audio prompt key fails before any Replicate or DALL-E call."""
+    """A missing or empty audio prompt key fails before any Replicate or image call."""
     prompts = dict(COMPLETE_AUDIO_PROMPTS)
     if bad_value is None:
         del prompts[missing_key]
@@ -186,7 +215,7 @@ def test_incomplete_audio_prompts_raise_before_paid_steps(
     with pytest.raises(ValueError, match=missing_key):
         _run(_api_keys())
     module.ReplicateClient.return_value.run.assert_not_called()
-    post.assert_not_called()
+    images.assert_not_called()
 
 
 def test_invalid_request_error_matches_the_mech_contract() -> None:

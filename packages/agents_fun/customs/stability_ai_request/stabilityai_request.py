@@ -40,6 +40,11 @@ DEFAULT_STABILITYAI_SETTINGS = {
     "steps": 30,
 }
 PREFIX = "stabilityai-"
+# Credits per image for SDXL 1.0 on the v1 endpoint at the default settings,
+# and USD per credit (docs.stability.ai/pricing). Larger sizes and more steps
+# cost more; the default is what this tool reports.
+SDXL_CREDITS_PER_IMAGE = 0.9
+USD_PER_CREDIT = 0.01
 ENGINES = {
     "picture": [
         "stable-diffusion-xl-1024-v1-0",
@@ -129,6 +134,24 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
     return wrapper
 
 
+def record_api_cost(
+    counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
+) -> None:
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
+    if counter_callback is None or cost_usd <= 0:
+        return
+    try:
+        counter_callback(
+            input_tokens=0,
+            output_tokens=0,
+            model=model,
+            token_counter=lambda text, model: 0,
+            call_cost=cost_usd,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"Could not report the {model} cost to the mech: {exc}")
+
+
 def count_tokens(text: str, model: str) -> int:
     """Count the number of tokens in a text."""
     enc = encoding_for_model(model)
@@ -152,6 +175,7 @@ def run(  # pylint: disable=too-many-locals
     api_key = kwargs["api_keys"][STABILITY_SERVICE]
     tool = kwargs["tool"]
     prompt = kwargs["prompt"]
+    counter_callback = kwargs.get("counter_callback", None)
 
     if tool not in ALLOWED_TOOLS:
         raise InvalidRequestError(f"Tool {tool} is not in the list of supported tools.")
@@ -215,4 +239,9 @@ def run(  # pylint: disable=too-many-locals
             f"Non-200 response ({response.status_code}): {response.text}",
             response=response,
         )
-    return json.dumps(response.json()), None, None, None
+    record_api_cost(
+        counter_callback,
+        engine,
+        SDXL_CREDITS_PER_IMAGE * USD_PER_CREDIT * int(samples),
+    )
+    return json.dumps(response.json()), None, None, counter_callback

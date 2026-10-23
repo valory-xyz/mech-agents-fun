@@ -6,16 +6,18 @@ description: A tool to generate images from text using Google Generative AI.
 license: Apache-2.0
 aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
-  __init__.py: bafybeidnpzfuhbztaogflzlzwi7g7oyt2t5pcx6ayl5xuuixsq2nbt3vcu
-  google_image_gen.py: bafybeidnnhhzajbzcfhwwrrz5l2izkxy5kdzderjw4bocjvgawxnydjfli
+  __init__.py: bafybeifer6if5lybh6pxlawyj4p54ts2hwalzbqehhsqxit352ozh53oj4
+  google_image_gen.py: bafybeiay24b3gd34wqo2mm3ecase2pelwxzun2ugnqqsimnmup5ydwvume
+  tests/__init__.py: bafybeic4zowcjvl6jmwuaztfqkmw7jm2lobcrg2qt7mt3kmbuqgzz3lqxu
+  tests/test_google_image_gen.py: bafybeibw6zud36lhdoopmlb73i2kxolr2fjnma3cxsgokvxx44exfmnfom
 fingerprint_ignore_patterns: []
 entry_point: google_image_gen.py
 callable: run
 params:
-  default_model: imagen-4.0-generate-001
+  default_model: gemini-nano-banana-2.1
 dependencies:
   google-genai:
-    version: ==1.17.0
+    version: ==2.32.0
   google-api-core: {}
   pillow:
     version: ==12.2.0
