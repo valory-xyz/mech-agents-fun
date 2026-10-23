@@ -25,7 +25,6 @@ from typing import Dict, Optional
 from unittest.mock import MagicMock
 
 import pytest
-from google.api_core import exceptions as google_exceptions
 from google.genai import errors as genai_errors
 
 from packages.agents_fun.customs.google_video_gen import google_video_gen as module
@@ -41,11 +40,18 @@ TOOL = "google_video_gen"
 PROMPT = "ocean waves at night"
 GEMINI_KEY = "gemini-test"
 AUDIO_HASH = "bafy-audio"
-GOOGLE_SERVICE = "google_api_key"
+GOOGLE_SERVICE = "gemini_api_key"
+HTTP_TOO_MANY_REQUESTS = 429
+HTTP_SERVER_ERROR = 500
 KEY_VALUE = GEMINI_KEY
 HTTP_FORBIDDEN = 403
 SCRIPT_RESPONSE_TEXT = "Voiceover: The sea keeps time.\nVoice: kore"
 PCM_SILENCE = b"\x00\x00" * 16
+
+
+def _genai_rate_limit() -> genai_errors.ClientError:
+    """Build the error the Google GenAI SDK raises on HTTP 429."""
+    return _genai_client_error(HTTP_TOO_MANY_REQUESTS, "RESOURCE_EXHAUSTED", "quota")
 
 
 def _genai_client_error(
@@ -90,17 +96,19 @@ def _run(api_keys: FakeKeyChain, tool: str = TOOL) -> tuple:
 @pytest.mark.parametrize(
     "error",
     [
-        google_exceptions.PermissionDenied("key rejected"),
+        _genai_client_error(HTTP_FORBIDDEN, "PERMISSION_DENIED", "key rejected"),
         ConnectionError("network unreachable"),
     ],
 )
 def test_run_raises_on_provider_error(
     genai_client: MagicMock, error: Exception
 ) -> None:
-    """A provider error that is not a rate limit propagates out of run."""
+    """A provider error that is not a rate limit propagates and rotates nothing."""
     genai_client.models.generate_content.side_effect = error
+    api_keys = FakeKeyChain({"gemini_api_key": GEMINI_KEY}, {GOOGLE_SERVICE: 1})
     with pytest.raises(type(error)):
-        _run(FakeKeyChain({"gemini_api_key": GEMINI_KEY}))
+        _run(api_keys)
+    assert api_keys.rotated == []
 
 
 def test_provider_bad_request_on_the_prompt_is_an_invalid_request(
@@ -165,7 +173,7 @@ def test_rate_limit_rotates_key_and_returns_retry_result(
 ) -> None:
     """A rate limit rotates the Google key and the retry's answer is returned."""
     genai_client.models.generate_content.side_effect = [
-        google_exceptions.ResourceExhausted("quota"),
+        _genai_rate_limit(),
         _script_response(),
         _tts_response(),
     ]
@@ -178,13 +186,22 @@ def test_rate_limit_rotates_key_and_returns_retry_result(
     assert result[-1] is api_keys
 
 
+def test_rate_limit_reraises_when_keychain_has_no_gemini_service(
+    genai_client: MagicMock,
+) -> None:
+    """A rate limit with no Gemini keys to rotate propagates, not a KeyError."""
+    genai_client.models.generate_content.side_effect = _genai_rate_limit()
+    api_keys = FakeKeyChain({"gemini_api_key": GEMINI_KEY}, {"openai": 1})
+    with pytest.raises(genai_errors.ClientError):
+        _run(api_keys)
+    assert api_keys.rotated == []
+
+
 def test_rate_limit_reraises_when_no_retries_left(genai_client: MagicMock) -> None:
     """With the retry budget spent, the rate limit propagates."""
-    genai_client.models.generate_content.side_effect = (
-        google_exceptions.ResourceExhausted("quota")
-    )
+    genai_client.models.generate_content.side_effect = _genai_rate_limit()
     api_keys = FakeKeyChain({"gemini_api_key": GEMINI_KEY}, {GOOGLE_SERVICE: 0})
-    with pytest.raises(google_exceptions.ResourceExhausted):
+    with pytest.raises(genai_errors.ClientError):
         _run(api_keys)
     assert api_keys.rotated == []
 

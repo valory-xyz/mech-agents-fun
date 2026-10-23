@@ -32,9 +32,6 @@ import anthropic
 import requests
 from aea_cli_ipfs.ipfs_utils import IPFSTool
 from google import genai  # type: ignore[import-not-found]
-from google.api_core import (
-    exceptions as google_exceptions,  # type: ignore[import-not-found]
-)
 from google.genai import errors as genai_errors  # type: ignore[import-not-found]
 from google.genai import types  # type: ignore[import-not-found]
 from moviepy.audio.AudioClip import AudioClip, concatenate_audioclips
@@ -64,6 +61,8 @@ ALLOWED_TOOLS = [
     "google_video_gen",
 ]
 HTTP_BAD_REQUEST = 400
+HTTP_TOO_MANY_REQUESTS = 429
+GEMINI_SERVICE = "gemini_api_key"
 
 
 class InvalidRequestError(ValueError):
@@ -97,39 +96,32 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
             try:
                 result = func(*args, **kwargs)
                 return result + (api_keys,)
-            except (
-                anthropic.RateLimitError,
-                google_exceptions.ResourceExhausted,
-                google_exceptions.TooManyRequests,
-            ) as e:
-                service = "google_api_key"
-                if isinstance(e, anthropic.RateLimitError):
-                    service = "anthropic"
-                if retries_left.get(service, 0) <= 0:
-                    print(f"No retries left for service: {service}")
-                    raise e
+            except anthropic.RateLimitError as e:
+                return rotate_and_retry(e, ("anthropic",))
+            except genai_errors.APIError as e:
+                if e.code != HTTP_TOO_MANY_REQUESTS:
+                    raise
+                return rotate_and_retry(e, (GEMINI_SERVICE,))
 
-                retries_left[service] -= 1
-                print(
-                    f"Rate limit error for {service}. Retries left: {retries_left[service]}. Rotating key."
-                )
-                api_keys.rotate(service)
-                return execute()
-            except (
-                google_exceptions.GoogleAPIError
-            ) as e:  # Specific catch for other GoogleAPIErrors
-                # If not a 500 error, or no code attribute, re-raise immediately
-                if not hasattr(e, "code") or e.code != 500:  # pylint: disable=no-member
-                    raise e
-                service = "google_api_key"
-                # If no retries left for this service, raise.
-                if retries_left.get(service, 0) <= 0:
-                    raise e
+        def rotate_and_retry(
+            error: Exception, services: Tuple[str, ...]
+        ) -> MechResponse:
+            """Rotate the services with keys left and retry.
 
-                # Retries are available, proceed with retry logic.
+            With no key left for any of them, the error is raised again.
+
+            :param error: the rate-limit error.
+            :param services: the services the error is for.
+            :return: the retry's response.
+            """
+            to_rotate = [s for s in services if retries_left.get(s, 0) > 0]
+            if not to_rotate:
+                raise error
+            for service in to_rotate:
                 retries_left[service] -= 1
+                print(f"Rate limit error for {service}. Rotating key.")
                 api_keys.rotate(service)
-                return execute()
+            return execute()
 
         return execute()
 
@@ -483,7 +475,7 @@ def run(  # pylint: disable=too-many-locals
     """Runs the Google video generation task using genai.Client and adds audio."""
     prompt = kwargs["prompt"]
     api_keys = kwargs["api_keys"]
-    google_api_key = api_keys.get("gemini_api_key", None)
+    google_api_key = api_keys.get(GEMINI_SERVICE, None)
     tool = kwargs.get("tool")
     counter_callback = kwargs.get("counter_callback", None)
     model_name = "veo-2.0-generate-001"

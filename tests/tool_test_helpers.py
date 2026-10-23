@@ -48,7 +48,9 @@ class FakeKeyChain(dict):
         return dict(self._retries)
 
     def rotate(self, service_name: str) -> None:
-        """Record the rotation."""
+        """Record the rotation; an unknown service raises, as in the KeyChain."""
+        if service_name not in self:
+            raise KeyError(service_name)
         self.rotated.append(service_name)
 
 

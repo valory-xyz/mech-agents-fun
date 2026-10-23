@@ -60,6 +60,8 @@ ENGINE_SIZE_CHART = {
 
 ALLOWED_TOOLS = [PREFIX + value for value in ENGINES["picture"]]
 HTTP_BAD_REQUEST = 400
+HTTP_TOO_MANY_REQUESTS = 429
+STABILITY_SERVICE = "stabilityai"
 
 
 class InvalidRequestError(ValueError):
@@ -89,33 +91,37 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 result = func(*args, **kwargs)
                 return result + (api_keys,)
             except anthropic.RateLimitError as e:
-                # try with a new key again
-                service = "anthropic"
-                if retries_left[service] <= 0:
-                    raise e
-                retries_left[service] -= 1
-                api_keys.rotate(service)
-                return execute()
+                return rotate_and_retry(e, ("anthropic",))
             except openai.RateLimitError as e:
-                # try with a new key again
-                if retries_left["openai"] <= 0 and retries_left["openrouter"] <= 0:
-                    raise e
-                retries_left["openai"] -= 1
-                retries_left["openrouter"] -= 1
-                api_keys.rotate("openai")
-                api_keys.rotate("openrouter")
-                return execute()
+                return rotate_and_retry(e, ("openai", "openrouter"))
             except GoogleApiClientHttpError as e:
-                # try with a new key again
-                rate_limit_exceeded_code = 429
-                if e.status_code != rate_limit_exceeded_code:
+                if e.status_code != HTTP_TOO_MANY_REQUESTS:
                     raise e
-                service = "google_api_key"
-                if retries_left[service] <= 0:
+                return rotate_and_retry(e, ("google_api_key",))
+            except requests.HTTPError as e:
+                status = getattr(e.response, "status_code", None)
+                if status != HTTP_TOO_MANY_REQUESTS:
                     raise e
+                return rotate_and_retry(e, (STABILITY_SERVICE,))
+
+        def rotate_and_retry(
+            error: Exception, services: Tuple[str, ...]
+        ) -> MechResponse:
+            """Rotate the services with keys left and retry.
+
+            With no key left for any of them, the error is raised again.
+
+            :param error: the rate-limit error.
+            :param services: the services the error is for.
+            :return: the retry's response.
+            """
+            to_rotate = [s for s in services if retries_left.get(s, 0) > 0]
+            if not to_rotate:
+                raise error
+            for service in to_rotate:
                 retries_left[service] -= 1
                 api_keys.rotate(service)
-                return execute()
+            return execute()
 
         mech_response = execute()
         return mech_response
@@ -143,7 +149,7 @@ def run(  # pylint: disable=too-many-locals
 ) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     """Run the task"""
 
-    api_key = kwargs["api_keys"]["stabilityai"]
+    api_key = kwargs["api_keys"][STABILITY_SERVICE]
     tool = kwargs["tool"]
     prompt = kwargs["prompt"]
 

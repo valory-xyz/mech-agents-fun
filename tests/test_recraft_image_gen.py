@@ -163,3 +163,31 @@ def test_keychain_without_rotation_methods_raises(boundaries: MagicMock) -> None
     with pytest.raises(TypeError, match="required methods"):
         module.run(prompt=PROMPT, tool=TOOL, api_keys={"recraft_api_key": RECRAFT_KEY})
     boundaries.images.generate.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "style",
+    ["vector_illustration", "icon", "Vector art", "any", "", None, 7],
+)
+def test_non_raster_style_is_an_invalid_request(
+    boundaries: MagicMock, style: object
+) -> None:
+    """A style Recraft does not return as a raster image is refused before generation."""
+    with pytest.raises(module.InvalidRequestError, match="Style"):
+        module.run(prompt=PROMPT, tool=TOOL, api_keys=_api_keys(), style=style)
+    boundaries.images.generate.assert_not_called()
+
+
+@pytest.mark.parametrize("style", module.RASTER_STYLES)
+def test_raster_style_is_sent_to_recraft(boundaries: MagicMock, style: str) -> None:
+    """A raster style reaches the generate call and the result."""
+    result = module.run(prompt=PROMPT, tool=TOOL, api_keys=_api_keys(), style=style)
+    assert boundaries.images.generate.call_args.kwargs["style"] == style
+    assert json.loads(result[0])["style"] == style
+
+
+def test_default_style_is_raster(boundaries: MagicMock) -> None:
+    """With no style in the request the default raster style is used."""
+    _run(_api_keys())
+    assert boundaries.images.generate.call_args.kwargs["style"] == module.DEFAULT_STYLE
+    assert module.DEFAULT_STYLE in module.RASTER_STYLES

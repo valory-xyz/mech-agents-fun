@@ -29,9 +29,6 @@ import openai
 from PIL import Image  # type: ignore[import-not-found]
 from aea_cli_ipfs.ipfs_utils import IPFSTool
 from google import genai  # type: ignore[import-not-found]
-from google.api_core import (
-    exceptions as google_exceptions,  # type: ignore[import-not-found]
-)
 from google.genai import errors as genai_errors  # type: ignore[import-not-found]
 from google.genai import types  # type: ignore[import-not-found]
 
@@ -40,6 +37,8 @@ MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
 DEFAULT_MODEL = "imagen-4.0-generate-001"
 HTTP_BAD_REQUEST = 400
+HTTP_TOO_MANY_REQUESTS = 429
+GEMINI_SERVICE = "gemini_api_key"
 
 # Define allowed tools for this module
 ALLOWED_TOOLS = [
@@ -78,49 +77,34 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
             try:
                 result = func(*args, **kwargs)
                 return result + (api_keys,)
-            except (
-                anthropic.RateLimitError,
-                openai.RateLimitError,
-                google_exceptions.ResourceExhausted,
-                google_exceptions.TooManyRequests,
-            ) as e:
-                service = "google_api_key"
-                if isinstance(e, anthropic.RateLimitError):
-                    service = "anthropic"
-                elif isinstance(e, openai.RateLimitError):
-                    if retries_left["openai"] <= 0 and retries_left["openrouter"] <= 0:
-                        raise e
-                    retries_left["openai"] -= 1
-                    retries_left["openrouter"] -= 1
-                    api_keys.rotate("openai")
-                    api_keys.rotate("openrouter")
-                    return execute()
+            except anthropic.RateLimitError as e:
+                return rotate_and_retry(e, ("anthropic",))
+            except openai.RateLimitError as e:
+                return rotate_and_retry(e, ("openai", "openrouter"))
+            except genai_errors.APIError as e:
+                if e.code != HTTP_TOO_MANY_REQUESTS:
+                    raise
+                return rotate_and_retry(e, (GEMINI_SERVICE,))
 
-                if retries_left.get(service, 0) <= 0:
-                    print(f"No retries left for service: {service}")
-                    raise e
+        def rotate_and_retry(
+            error: Exception, services: Tuple[str, ...]
+        ) -> MechResponse:
+            """Rotate the services with keys left and retry.
 
+            With no key left for any of them, the error is raised again.
+
+            :param error: the rate-limit error.
+            :param services: the services the error is for.
+            :return: the retry's response.
+            """
+            to_rotate = [s for s in services if retries_left.get(s, 0) > 0]
+            if not to_rotate:
+                raise error
+            for service in to_rotate:
                 retries_left[service] -= 1
-                print(
-                    f"Rate limit error for {service}. Retries left: {retries_left[service]}. Rotating key."
-                )
+                print(f"Rate limit error for {service}. Rotating key.")
                 api_keys.rotate(service)
-                return execute()
-            except (
-                google_exceptions.GoogleAPIError
-            ) as e:  # Specific catch for other GoogleAPIErrors
-                # If not a 500 error, or no code attribute, re-raise immediately
-                if not hasattr(e, "code") or e.code != 500:  # pylint: disable=no-member
-                    raise e
-                service = "google_api_key"
-                # If no retries left for this service, raise.
-                if retries_left.get(service, 0) <= 0:
-                    raise e
-
-                # Retries are available, proceed with retry logic.
-                retries_left[service] -= 1
-                api_keys.rotate(service)
-                return execute()
+            return execute()
 
         return execute()
 
@@ -220,7 +204,7 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
     """Runs the Google image generation task using genai.Client."""
     prompt = kwargs["prompt"]
     api_keys = kwargs["api_keys"]
-    api_key = api_keys.get("gemini_api_key", None)
+    api_key = api_keys.get(GEMINI_SERVICE, None)
     tool = kwargs.get("tool")
     counter_callback = kwargs.get("counter_callback", None)
     model_name = kwargs.get("model") or DEFAULT_MODEL

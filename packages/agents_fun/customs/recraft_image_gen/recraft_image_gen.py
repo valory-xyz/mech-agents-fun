@@ -36,6 +36,10 @@ MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 ALLOWED_TOOLS = [
     "recraft-image-gen",
 ]
+DEFAULT_STYLE = "realistic_image"
+# Recraft returns vector styles (vector_illustration, icon) as SVG, which this
+# tool cannot store as an image; only raster styles are served.
+RASTER_STYLES = ("realistic_image", "digital_illustration", "logo_raster")
 
 
 class InvalidRequestError(ValueError):
@@ -67,9 +71,21 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
     return wrapper
 
 
-def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> None:
+def _validate_inputs(tool: Optional[str], style: Any, api_key: Optional[str]) -> None:
+    """Validate the tool, the style and the API key.
+
+    :param tool: the requested tool name.
+    :param style: the requested Recraft style.
+    :param api_key: the Recraft API key.
+    :raises InvalidRequestError: if the tool or the style is not supported.
+    :raises ValueError: if the key is missing.
+    """
     if tool not in ALLOWED_TOOLS:
         raise InvalidRequestError(f"Tool {tool} is not supported by this agent.")
+    if style not in RASTER_STYLES:
+        raise InvalidRequestError(
+            f"Style {style!r} is not supported; use one of {', '.join(RASTER_STYLES)}."
+        )
     if not api_key:
         raise ValueError("Recraft API key (RECRAFT_API_KEY) not provided.")
 
@@ -131,12 +147,12 @@ def _prepare_result(image_hash: str, prompt: str, style: str) -> str:
 def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     """Run the recraft image generation tool."""
     prompt = kwargs["prompt"]
-    style = kwargs.get("style", "realistic_image")
+    style = kwargs.get("style", DEFAULT_STYLE)
     api_key = kwargs["api_keys"].get("recraft_api_key")
     tool = kwargs.get("tool")
     counter_callback = kwargs.get("counter_callback", None)
 
-    _validate_inputs(tool, api_key)
+    _validate_inputs(tool, style, api_key)
 
     response = _generate_content(prompt, style, api_key)
     print("[DEBUG] Raw response from Recraft API:", response)

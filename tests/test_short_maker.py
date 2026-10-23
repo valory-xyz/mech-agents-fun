@@ -19,6 +19,7 @@
 
 """Unit tests for short_maker failure handling."""
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -108,26 +109,84 @@ def test_get_shot_prompts_raises_on_provider_error(chat: MagicMock) -> None:
         module.get_shot_prompts(PROMPT, VOICEOVER_SECONDS)
 
 
-@pytest.mark.parametrize(
-    ("response", "error_type"),
-    [
-        (
-            MagicMock(
-                raise_for_status=MagicMock(side_effect=requests.HTTPError("500"))
-            ),
-            requests.HTTPError,
-        ),
-        (MagicMock(json=lambda: {"data": []}), ValueError),
-        (MagicMock(json=lambda: {}), ValueError),
-    ],
-)
-def test_generate_images_raises_on_failed_shot(
-    post: MagicMock, response: MagicMock, error_type: type
+GOOD_IMAGE_URL = "https://images.test/shot.png"
+TWO_SHOT_PROMPTS = {"shot1_prompt": "wide shot", "shot2_prompt": "close up"}
+
+
+def _image_response(url: str = GOOD_IMAGE_URL) -> MagicMock:
+    """Build a DALL-E answer carrying one image."""
+    return MagicMock(json=MagicMock(return_value={"data": [{"url": url}]}))
+
+
+FAILED_SHOT_RESPONSES = [
+    MagicMock(raise_for_status=MagicMock(side_effect=requests.HTTPError("429"))),
+    MagicMock(json=MagicMock(return_value={"data": []})),
+    MagicMock(json=MagicMock(return_value={})),
+    MagicMock(json=MagicMock(return_value={"data": [{}]})),
+    MagicMock(json=MagicMock(side_effect=requests.JSONDecodeError("bad", "", 0))),
+]
+
+
+@pytest.mark.parametrize("failed", FAILED_SHOT_RESPONSES)
+def test_generate_images_skips_a_failed_shot(
+    post: MagicMock, failed: MagicMock
 ) -> None:
-    """A failed or empty DALL-E answer raises instead of storing error text."""
-    post.return_value = response
-    with pytest.raises(error_type):
-        module.generate_images_with_dalle(SHOT_PROMPTS, OPENAI_KEY)
+    """A failed or empty shot is left out and the other shots are kept."""
+    post.side_effect = [failed, _image_response()]
+    images = module.generate_images_with_dalle(TWO_SHOT_PROMPTS, OPENAI_KEY)
+    assert images == {"shot2_prompt": GOOD_IMAGE_URL}
+
+
+def test_generate_images_skips_a_request_error(post: MagicMock) -> None:
+    """A shot whose request fails outright is left out."""
+    post.side_effect = [requests.Timeout("slow"), _image_response()]
+    images = module.generate_images_with_dalle(TWO_SHOT_PROMPTS, OPENAI_KEY)
+    assert images == {"shot2_prompt": GOOD_IMAGE_URL}
+
+
+@pytest.mark.parametrize("failed", FAILED_SHOT_RESPONSES)
+def test_generate_images_raises_when_no_shot_has_an_image(
+    post: MagicMock, failed: MagicMock
+) -> None:
+    """With every shot failed there is nothing to build a video from."""
+    post.return_value = failed
+    with pytest.raises(ValueError, match="No shot image"):
+        module.generate_images_with_dalle(TWO_SHOT_PROMPTS, OPENAI_KEY)
+    assert post.call_count == len(TWO_SHOT_PROMPTS)
+
+
+COMPLETE_AUDIO_PROMPTS = {
+    "voiceover_script": "Cities wake before we do.",
+    "soundtrack_prompt": "soft morning ambience",
+    "voice": "English_Graceful_Lady",
+}
+
+
+def _chat_answer(content: dict) -> MagicMock:
+    """Build a chat completion whose message is the JSON of content."""
+    answer = MagicMock()
+    answer.choices[0].message.content = json.dumps(content)
+    return answer
+
+
+@pytest.mark.parametrize(
+    "missing_key", ["voiceover_script", "soundtrack_prompt", "voice"]
+)
+@pytest.mark.parametrize("bad_value", [None, "", 7])
+def test_incomplete_audio_prompts_raise_before_paid_steps(
+    chat: MagicMock, post: MagicMock, missing_key: str, bad_value: object
+) -> None:
+    """A missing or empty audio prompt key fails before any Replicate or DALL-E call."""
+    prompts = dict(COMPLETE_AUDIO_PROMPTS)
+    if bad_value is None:
+        del prompts[missing_key]
+    else:
+        prompts[missing_key] = bad_value
+    chat.return_value = _chat_answer(prompts)
+    with pytest.raises(ValueError, match=missing_key):
+        _run(_api_keys())
+    module.ReplicateClient.return_value.run.assert_not_called()
+    post.assert_not_called()
 
 
 def test_invalid_request_error_matches_the_mech_contract() -> None:
@@ -141,3 +200,14 @@ def test_unsupported_tool_is_an_invalid_request(chat: MagicMock, tool: str) -> N
     with pytest.raises(module.InvalidRequestError, match="is not supported"):
         _run(_api_keys(), tool=tool)
     chat.assert_not_called()
+
+
+def test_rate_limit_rotates_only_services_in_the_keychain(chat: MagicMock) -> None:
+    """A keychain without openrouter rotates openai alone, not a KeyError."""
+    chat.side_effect = [openai_rate_limit_error(), openai_auth_error()]
+    api_keys = FakeKeyChain(
+        {"openai": OPENAI_KEY, "replicate": "r8-test"}, {"openai": 1}
+    )
+    with pytest.raises(type(openai_auth_error())):
+        _run(api_keys)
+    assert api_keys.rotated == ["openai"]

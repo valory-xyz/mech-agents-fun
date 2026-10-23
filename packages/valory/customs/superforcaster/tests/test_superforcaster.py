@@ -324,12 +324,15 @@ MODEL = "gpt-4.1-2025-04-14"
 class _FakeKeyChain(dict):
     """A KeyChain stand-in that records every rotation."""
 
-    def __init__(self, retries: int) -> None:
+    def __init__(self, retries: int, with_openrouter: bool = True) -> None:
         """Store one key per service and the retry budget."""
-        super().__init__(
-            openai="sk-test", openrouter="or-test", serperapi="serper-test"
-        )
-        self._retries = {"openai": retries, "openrouter": retries}
+        keys = {"openai": "sk-test", "serperapi": "serper-test"}
+        if with_openrouter:
+            keys["openrouter"] = "or-test"
+        super().__init__(keys)
+        self._retries = {
+            service: retries for service in ("openai", "openrouter") if service in keys
+        }
         self.rotated: list = []
 
     def max_retries(self) -> dict:
@@ -337,7 +340,9 @@ class _FakeKeyChain(dict):
         return dict(self._retries)
 
     def rotate(self, service_name: str) -> None:
-        """Record the rotation."""
+        """Record the rotation; an unknown service raises, as in the KeyChain."""
+        if service_name not in self:
+            raise KeyError(service_name)
         self.rotated.append(service_name)
 
 
@@ -410,6 +415,21 @@ class TestFailedRunRaises:
         assert json.loads(result[0])["p_yes"] == FAKE_PREDICTION.p_yes
         assert result[-1] is api_keys
 
+    def test_rate_limit_rotates_only_services_in_the_keychain(
+        self, parse: MagicMock
+    ) -> None:
+        """A keychain without openrouter rotates openai alone and retries."""
+        rate_limit = _openai_error(openai.RateLimitError, HTTP_TOO_MANY_REQUESTS)
+        parse.side_effect = [rate_limit] * module.COMPLETION_RETRIES + [
+            _mock_parse_response()
+        ]
+        api_keys = _FakeKeyChain(retries=1, with_openrouter=False)
+
+        result = self._run(api_keys)
+
+        assert api_keys.rotated == ["openai"]
+        assert json.loads(result[0])["p_yes"] == FAKE_PREDICTION.p_yes
+
     def test_rate_limit_propagates_when_no_retries_left(self, parse: MagicMock) -> None:
         """With the retry budget spent, the rate limit propagates."""
         rate_limit = _openai_error(openai.RateLimitError, HTTP_TOO_MANY_REQUESTS)
@@ -465,3 +485,75 @@ class TestClientFaultClassification:
                 api_keys=_FakeKeyChain(retries=0),
             )
         assert type(err.value).__name__ != "InvalidRequestError"
+
+
+class TestSamplingValidation:
+    """Sampling settings outside the supported range are a fault in the request."""
+
+    @pytest.fixture
+    def parse(self, monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+        """Patch the OpenAI client and the Serper HTTP call."""
+        client = MagicMock()
+        client.beta.chat.completions.parse.return_value = _mock_parse_response()
+        monkeypatch.setattr(module, "OpenAI", MagicMock(return_value=client))
+        serper = MagicMock()
+        serper.json.return_value = FAKE_SERPER_RESPONSE
+        monkeypatch.setattr(module.requests, "request", MagicMock(return_value=serper))
+        return client.beta.chat.completions.parse
+
+    def _run(self, **extra: object) -> tuple:
+        """Call the tool entry point with extra request fields."""
+        return run(
+            tool="superforcaster",
+            model=MODEL,
+            prompt=PREDICTION_PROMPT,
+            api_keys=_FakeKeyChain(retries=0),
+            **extra,
+        )
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            {"temperature": 3},
+            {"temperature": -0.1},
+            {"temperature": float("nan")},
+            {"temperature": "0.5"},
+            {"temperature": True},
+            {"temperature": None},
+            {"max_tokens": 1},
+            {"max_tokens": module.MIN_MAX_TOKENS - 1},
+            {"max_tokens": module.DEFAULT_OPENAI_SETTINGS["limit_max_tokens"] + 1},
+            {"max_tokens": 2048.0},
+            {"max_tokens": True},
+            {"max_tokens": None},
+        ],
+    )
+    def test_out_of_range_setting_is_an_invalid_request(
+        self, parse: MagicMock, extra: dict
+    ) -> None:
+        """A bad setting raises InvalidRequestError before any paid call."""
+        with pytest.raises(module.InvalidRequestError):
+            self._run(**extra)
+        module.requests.request.assert_not_called()
+        parse.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            {},
+            {"temperature": module.MIN_TEMPERATURE},
+            {"temperature": module.MAX_TEMPERATURE},
+            {"temperature": 1},
+            {"max_tokens": module.MIN_MAX_TOKENS},
+            {"max_tokens": module.DEFAULT_OPENAI_SETTINGS["limit_max_tokens"]},
+        ],
+    )
+    def test_in_range_setting_reaches_the_model(
+        self, parse: MagicMock, extra: dict
+    ) -> None:
+        """A setting at or inside the bounds is sent to the model as given."""
+        result = self._run(**extra)
+        call = parse.call_args.kwargs
+        for key, value in extra.items():
+            assert call[key] == value
+        assert json.loads(result[0])["p_yes"] == FAKE_PREDICTION.p_yes

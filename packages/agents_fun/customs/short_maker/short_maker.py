@@ -57,6 +57,8 @@ class InvalidRequestError(ValueError):
     """
 
 
+AUDIO_PROMPT_KEYS = ("voiceover_script", "soundtrack_prompt", "voice")
+
 REPLICATE_MUSIC_GEN = (
     "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
 )
@@ -89,13 +91,17 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 api_keys.rotate(service)
                 return execute()
             except openai.RateLimitError as e:
-                # try with a new key again
-                if retries_left["openai"] <= 0 and retries_left["openrouter"] <= 0:
+                # rotate only the services the keychain has keys left for
+                services = [
+                    service
+                    for service in ("openai", "openrouter")
+                    if retries_left.get(service, 0) > 0
+                ]
+                if not services:
                     raise e
-                retries_left["openai"] -= 1
-                retries_left["openrouter"] -= 1
-                api_keys.rotate("openai")
-                api_keys.rotate("openrouter")
+                for service in services:
+                    retries_left[service] -= 1
+                    api_keys.rotate(service)
                 return execute()
             except GoogleApiClientHttpError as e:
                 # try with a new key again
@@ -265,7 +271,17 @@ def generate_images_with_dalle(
     engine: str = "dall-e-3",
     number_of_images: int = 1,
 ) -> Dict[str, str]:
-    """Use shot prompts to generate images from DALL-E for video generation."""
+    """Use shot prompts to generate images from DALL-E for video generation.
+
+    A shot that fails or comes back without an image is left out.
+
+    :param shot_prompts: prompt per shot number.
+    :param api_key: the OpenAI key.
+    :param engine: the DALL-E model.
+    :param number_of_images: images to request per shot.
+    :return: image URL per shot number, for the shots that produced one.
+    :raises ValueError: when no shot produced an image.
+    """
     generated_images = {}
     for shot_number, prompt in shot_prompts.items():
         json_params = dict(
@@ -274,24 +290,28 @@ def generate_images_with_dalle(
             size="1024x1024",
             n=number_of_images,
         )
-        response = requests.post(
-            "https://api.openai.com/v1/images/generations",
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "Authorization": f"Bearer {api_key}",
-                "Stability-Client-ID": "mechs-tool",
-            },
-            json=json_params,
-            timeout=30,
-        )
-        response.raise_for_status()
-        body = response.json()
-        if not body.get("data"):
-            raise ValueError(f"No image data in response for {shot_number}.")
-        generated_images[shot_number] = body["data"][0]["url"]
-        print(f"Generated image for {shot_number}: {generated_images[shot_number]}")
+        try:
+            response = requests.post(
+                "https://api.openai.com/v1/images/generations",
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                    "Stability-Client-ID": "mechs-tool",
+                },
+                json=json_params,
+                timeout=30,
+            )
+            response.raise_for_status()
+            url = response.json()["data"][0]["url"]
+        except (requests.RequestException, ValueError, LookupError, TypeError) as e:
+            print(f"Skipping {shot_number}, no image generated: {e}")
+            continue
+        generated_images[shot_number] = url
+        print(f"Generated image for {shot_number}: {url}")
 
+    if not generated_images:
+        raise ValueError("No shot image could be generated.")
     return generated_images
 
 
@@ -439,6 +459,13 @@ def run(  # pylint: disable=too-many-locals
     # Step 2: Get audio prompts
     print(f"Getting audio prompts for input: {user_input}")
     audio_prompts = get_audio_prompts(user_input)
+    missing = [
+        key
+        for key in AUDIO_PROMPT_KEYS
+        if not isinstance(audio_prompts.get(key), str) or not audio_prompts[key]
+    ]
+    if missing:
+        raise ValueError(f"Audio prompts are missing {', '.join(missing)}.")
 
     # Step 3: Process voiceover
     print("Processing voiceover...")

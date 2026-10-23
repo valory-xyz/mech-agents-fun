@@ -154,13 +154,17 @@ def with_key_rotation(func: Callable) -> Callable:
                 result = func(*args, **kwargs)
                 return result + (api_keys,)
             except openai.RateLimitError as e:
-                # try with a new key again
-                if retries_left["openai"] <= 0 and retries_left["openrouter"] <= 0:
+                # rotate only the services the keychain has keys left for
+                services = [
+                    service
+                    for service in ("openai", "openrouter")
+                    if retries_left.get(service, 0) > 0
+                ]
+                if not services:
                     raise e
-                retries_left["openai"] -= 1
-                retries_left["openrouter"] -= 1
-                api_keys.rotate("openai")
-                api_keys.rotate("openrouter")
+                for service in services:
+                    retries_left[service] -= 1
+                    api_keys.rotate(service)
                 return execute()
 
         mech_response = execute()
@@ -205,6 +209,10 @@ DEFAULT_OPENAI_SETTINGS = {
     "limit_max_tokens": 4096,
     "temperature": 0,
 }
+MIN_TEMPERATURE = 0.0
+MAX_TEMPERATURE = 2.0
+# room for the five reasoning fields of PredictionResult
+MIN_MAX_TOKENS = 1024
 DEFAULT_OPENAI_MODEL = "gpt-4.1-2025-04-14"
 ALLOWED_TOOLS = ["superforcaster"]
 ALLOWED_MODELS = [DEFAULT_OPENAI_MODEL]
@@ -450,6 +458,34 @@ def extract_question(prompt: str) -> str:
     return question
 
 
+def _validate_sampling(temperature: Any, max_tokens: Any) -> None:
+    """Check the sampling settings a request may carry.
+
+    :param temperature: the requested sampling temperature.
+    :param max_tokens: the requested completion token limit.
+    :raises InvalidRequestError: when either is outside the supported range.
+    """
+    if (
+        isinstance(temperature, bool)
+        or not isinstance(temperature, (int, float))
+        or not MIN_TEMPERATURE <= temperature <= MAX_TEMPERATURE
+    ):
+        raise InvalidRequestError(
+            f"temperature must be a number from {MIN_TEMPERATURE} to "
+            f"{MAX_TEMPERATURE}, got {temperature!r}."
+        )
+    limit = DEFAULT_OPENAI_SETTINGS["limit_max_tokens"]
+    if (
+        isinstance(max_tokens, bool)
+        or not isinstance(max_tokens, int)
+        or not MIN_MAX_TOKENS <= max_tokens <= limit
+    ):
+        raise InvalidRequestError(
+            f"max_tokens must be an integer from {MIN_MAX_TOKENS} to {limit}, "
+            f"got {max_tokens!r}."
+        )
+
+
 @with_key_rotation
 def run(**kwargs: Any) -> MechResponse:
     """Run the task"""
@@ -475,9 +511,10 @@ def run(**kwargs: Any) -> MechResponse:
         raise ValueError(
             f"Invalid source_content_mode: {source_content_mode!r}. Must be 'cleaned' or 'raw'."
         )
+    max_tokens = kwargs.get("max_tokens", DEFAULT_OPENAI_SETTINGS["max_tokens"])
+    temperature = kwargs.get("temperature", DEFAULT_OPENAI_SETTINGS["temperature"])
+    _validate_sampling(temperature, max_tokens)
     with OpenAIClientManager(openai_api_key) as llm_client:
-        max_tokens = kwargs.get("max_tokens", DEFAULT_OPENAI_SETTINGS["max_tokens"])
-        temperature = kwargs.get("temperature", DEFAULT_OPENAI_SETTINGS["temperature"])
         prompt = kwargs["prompt"]
 
         today = date.today()

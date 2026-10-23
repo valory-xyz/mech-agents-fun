@@ -52,10 +52,10 @@ skills:
 - valory/transaction_settlement_abci:0.1.0:bafybeihizaapype5sz7vlosms3nfo6jzfj4ujycuf5uthviq2otvmw6f6m
 - valory/websocket_client:0.1.0:bafybeiht2ify5vkseeulutzjwkw5vcmhcwtun2o5ehn6hya6uz4eanua2m
 customs:
-- agents_fun/google_image_gen:0.1.0:bafybeifyqtoivqz4nyjns7duqluifjh4v57iokucas3tmwoutq63ya27ua
-- agents_fun/short_maker:0.1.0:bafybeiep7dvys3ddcny42fo5yswkugt2r5h74z6aozkr2whpjsb25uwizi
-- agents_fun/stability_ai_request:0.1.0:bafybeie2c6rakantkoervyaksmdcvpyu2665qkdzbonv3li7rlzilabri4
-- valory/superforcaster:0.1.0:bafybeigm5jqohr27ucyhkjciugijhyn56evvynxustjd5pmfqlxspids2q
+- agents_fun/google_image_gen:0.1.0:bafybeicwdic33ogbenlcufmaiqmkwbrzzufhy6j46wu5pgctifoec27waa
+- agents_fun/short_maker:0.1.0:bafybeiftdd7jipd2hqdqjirnumv5yyblx45cbdo6f3vg2zqfnqnypthiea
+- agents_fun/stability_ai_request:0.1.0:bafybeig224mbiw3clb5j7ioekhxgjmu6kprnkm3gm4747g4lseguntz7i4
+- valory/superforcaster:0.1.0:bafybeies4d6jyw3b2pbkxagxug5omo4a3tq4qy2npsglpdswfrhacod6ua
 default_ledger: ethereum
 required_ledgers:
 - ethereum

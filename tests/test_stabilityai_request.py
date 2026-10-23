@@ -33,7 +33,6 @@ from tests.tool_test_helpers import (
     FakeKeyChain,
     assert_invalid_request_contract,
     assert_not_invalid_request,
-    openai_rate_limit_error,
 )
 
 TOOL = "stabilityai-stable-diffusion-xl-1024-v1-0"
@@ -44,7 +43,6 @@ HTTP_BAD_REQUEST = 400
 HTTP_FORBIDDEN = 403
 HTTP_SERVER_ERROR = 500
 SUCCESS_BODY = {"artifacts": [{"base64": "AAAA"}]}
-RETRY_RESULT = ("retry answer", None, None, None)
 
 
 @pytest.fixture
@@ -105,15 +103,48 @@ def test_successful_run_returns_body_and_keychain(post: MagicMock) -> None:
     assert result[-1] is api_keys
 
 
-def test_rate_limit_rotates_key_and_returns_retry_result() -> None:
-    """The wrapper rotates on a rate limit and returns the retry's answer."""
-    func = MagicMock(side_effect=[openai_rate_limit_error(), RETRY_RESULT])
-    api_keys = _api_keys()
+HTTP_TOO_MANY_REQUESTS = 429
 
-    result = module.with_key_rotation(func)(api_keys=api_keys)
 
-    assert api_keys.rotated == ["openai", "openrouter"]
-    assert result == RETRY_RESULT + (api_keys,)
+@pytest.mark.parametrize("retries", [{"stabilityai": 1}, {"stabilityai": 2}])
+def test_stability_rate_limit_rotates_key_and_retries(
+    post: MagicMock, retries: dict
+) -> None:
+    """A Stability 429 rotates the Stability key and the retry answers."""
+    post.side_effect = [
+        MagicMock(status_code=HTTP_TOO_MANY_REQUESTS, text="slow down"),
+        MagicMock(status_code=HTTP_OK, json=lambda: SUCCESS_BODY),
+    ]
+    api_keys = FakeKeyChain({"stabilityai": STABILITY_KEY}, retries)
+
+    result = _run(api_keys)
+
+    assert api_keys.rotated == ["stabilityai"]
+    assert json.loads(result[0]) == SUCCESS_BODY
+    assert post.call_count == 2
+
+
+@pytest.mark.parametrize("retries", [{"stabilityai": 0}, {}])
+def test_stability_rate_limit_propagates_without_keys_left(
+    post: MagicMock, retries: dict
+) -> None:
+    """With no Stability key left to rotate, the 429 propagates as HTTPError."""
+    post.return_value = MagicMock(status_code=HTTP_TOO_MANY_REQUESTS, text="slow")
+    api_keys = FakeKeyChain({"stabilityai": STABILITY_KEY}, retries)
+    with pytest.raises(requests.HTTPError, match="429") as err:
+        _run(api_keys)
+    assert_not_invalid_request(err.value)
+    assert api_keys.rotated == []
+    post.assert_called_once()
+
+
+def test_non_rate_limit_http_error_does_not_rotate(post: MagicMock) -> None:
+    """A Stability 500 propagates without touching the keys."""
+    post.return_value = MagicMock(status_code=HTTP_SERVER_ERROR, text="down")
+    api_keys = FakeKeyChain({"stabilityai": STABILITY_KEY}, {"stabilityai": 1})
+    with pytest.raises(requests.HTTPError):
+        _run(api_keys)
+    assert api_keys.rotated == []
 
 
 def test_wrapper_propagates_non_rate_limit_error() -> None:
