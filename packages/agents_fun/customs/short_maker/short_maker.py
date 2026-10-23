@@ -18,6 +18,7 @@
 # ------------------------------------------------------------------------------
 """This module contains the implementation of the short_maker tool."""
 
+import base64
 import functools
 import json
 import logging
@@ -48,12 +49,84 @@ ALLOWED_TOOLS = [
     "short_maker",
 ]
 
+
+class InvalidRequestError(ValueError):
+    """The request cannot be served as sent: the fault is in the buyer's input.
+
+    The mech matches this class name to tell a client-side error apart from
+    a tool or provider failure. Raise it only for faults in the request.
+    """
+
+
+AUDIO_PROMPT_KEYS = ("voiceover_script", "soundtrack_prompt", "voice")
+
 REPLICATE_MUSIC_GEN = (
     "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
 )
 
 REPLICATE_MINIMAX_TTS = "minimax/speech-02-turbo"
-REPLICATE_STABILITY_STABLE_VIDEO_DIFFUSION = "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438"
+# Image-to-video at 480p, 81 frames at 16 fps.
+REPLICATE_WAN_I2V = "wan-video/wan-2.2-i2v-fast"
+
+# gpt-6-luna is priced by the mech per token, so its usage is reported as
+# tokens. The image model is reported as a charge from its usage at the list
+# prices below (developers.openai.com/api/docs/pricing, USD per million tokens:
+# text input, image output).
+TEXT_MODEL = "gpt-6-luna"
+IMAGE_MODEL = "gpt-image-2.5-flare"
+IMAGE_INPUT_USD_PER_M = 5.0
+IMAGE_OUTPUT_USD_PER_M = 30.0
+# Replicate prices: Wan 2.2 i2v fast per 480p video (replicate.com/blog/wan-22);
+# MiniMax speech-02-turbo per 1,000 input tokens, one token per character
+# (its Replicate model page); MusicGen is a community model billed by A100
+# time (replicate.com/pricing), so its charge is the prediction's
+# ``predict_time`` at that rate.
+WAN_COST_PER_VIDEO_USD = 0.05
+MINIMAX_TTS_USD_PER_1K_TOKENS = 0.06
+A100_USD_PER_SECOND = 0.0014
+
+
+def record_api_cost(
+    counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
+) -> None:
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
+    if counter_callback is None or cost_usd <= 0:
+        return
+    try:
+        counter_callback(
+            input_tokens=0,
+            output_tokens=0,
+            model=model,
+            token_counter=lambda text, model: 0,
+            call_cost=cost_usd,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"Could not report the {model} cost to the mech: {exc}")
+
+
+def record_chat_usage(
+    counter_callback: Optional[Callable[..., Any]], model: str, response: Any
+) -> None:
+    """Report a chat completion's token usage to the mech cost callback.
+
+    The mech prices ``model`` from its own table, so only the counts travel.
+
+    :param counter_callback: the mech cost callback, or None outside the mech.
+    :param model: the chat model that was called.
+    :param response: the chat completion response carrying ``usage``.
+    """
+    usage = getattr(response, "usage", None)
+    if counter_callback is None or usage is None:
+        return
+    try:
+        counter_callback(
+            input_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
+            output_tokens=int(getattr(usage, "completion_tokens", 0) or 0),
+            model=model,
+            token_counter=lambda text, model: 0,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"Could not report the {model} usage to the mech: {exc}")
 
 
 def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
@@ -80,13 +153,17 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 api_keys.rotate(service)
                 return execute()
             except openai.RateLimitError as e:
-                # try with a new key again
-                if retries_left["openai"] <= 0 and retries_left["openrouter"] <= 0:
+                # rotate only the services the keychain has keys left for
+                services = [
+                    service
+                    for service in ("openai", "openrouter")
+                    if retries_left.get(service, 0) > 0
+                ]
+                if not services:
                     raise e
-                retries_left["openai"] -= 1
-                retries_left["openrouter"] -= 1
-                api_keys.rotate("openai")
-                api_keys.rotate("openrouter")
+                for service in services:
+                    retries_left[service] -= 1
+                    api_keys.rotate(service)
                 return execute()
             except GoogleApiClientHttpError as e:
                 # try with a new key again
@@ -99,8 +176,6 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 retries_left[service] -= 1
                 api_keys.rotate(service)
                 return execute()
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                return str(e), "", None, None, api_keys
 
         mech_response = execute()
         return mech_response
@@ -118,7 +193,9 @@ def download_file(url: str, local_filepath: str) -> str:
     return local_filepath
 
 
-def get_audio_prompts(user_input: str, engine: str = "gpt-3.5-turbo") -> Dict[str, Any]:
+def get_audio_prompts(
+    user_input: str, engine: str = TEXT_MODEL, counter_callback: Any = None
+) -> Dict[str, Any]:
     """Construct the message that includes the user input"""
     message = {
         "role": "system",
@@ -147,6 +224,7 @@ def get_audio_prompts(user_input: str, engine: str = "gpt-3.5-turbo") -> Dict[st
             model=engine, messages=[message]  # type: ignore[list-item]
         )
 
+        record_chat_usage(counter_callback, engine, response)
         # Parse the JSON content from the response
         content = response.choices[0].message.content
         assert content is not None, "Response content is None"
@@ -163,8 +241,11 @@ def get_audio_prompts(user_input: str, engine: str = "gpt-3.5-turbo") -> Dict[st
 
 
 def get_shot_prompts(
-    user_input: str, voiceover_length: float, engine: str = "gpt-3.5-turbo"
-) -> Optional[Dict[str, Any]]:
+    user_input: str,
+    voiceover_length: float,
+    engine: str = TEXT_MODEL,
+    counter_callback: Any = None,
+) -> Dict[str, Any]:
     """Send a prompt to OpenAI API and return video shot prompts as JSON."""
 
     # Calculate the number of shots needed
@@ -187,28 +268,30 @@ def get_shot_prompts(
     # Close the JSON structure
     message["content"] = message["content"].strip(",\n") + "\n}"
 
-    try:
-        # Send the message to the chat completions endpoint
-        assert client is not None, "OpenAI client not initialized"
-        response = client.chat.completions.create(
-            model=engine, messages=[message]  # type: ignore[list-item]
-        )
+    # Send the message to the chat completions endpoint
+    assert client is not None, "OpenAI client not initialized"
+    response = client.chat.completions.create(
+        model=engine, messages=[message]  # type: ignore[list-item]
+    )
+    record_chat_usage(counter_callback, engine, response)
 
-        # Parse the JSON content from the response
-        content = response.choices[0].message.content
-        assert content is not None, "Response content is None"
+    # Parse the JSON content from the response
+    content = response.choices[0].message.content
+    assert content is not None, "Response content is None"
 
-        # Load the content as a JSON object to ensure proper JSON formatting
-        json_object = json.loads(content)
+    # Load the content as a JSON object to ensure proper JSON formatting
+    json_object = json.loads(content)
 
-        print(f"Shot Prompts: {json_object}")
-        return json_object
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"An error occurred: {e}")
-        return None
+    print(f"Shot Prompts: {json_object}")
+    return json_object
 
 
-def process_voiceover(replicate_client: ReplicateClient, text: str, voice: str) -> str:
+def process_voiceover(
+    replicate_client: ReplicateClient,
+    text: str,
+    voice: str,
+    counter_callback: Any = None,
+) -> str:
     """Narrate the provided text"""
     url = replicate_client.run(
         REPLICATE_MINIMAX_TTS,
@@ -228,15 +311,23 @@ def process_voiceover(replicate_client: ReplicateClient, text: str, voice: str) 
             "english_normalization": False,
         },
     )
+    record_api_cost(
+        counter_callback,
+        REPLICATE_MINIMAX_TTS,
+        len(text) / 1000 * MINIMAX_TTS_USD_PER_1K_TOKENS,
+    )
     return url
 
 
 def process_soundtrack(
-    replicate_client: ReplicateClient, prompt: str, duration: int = 10
+    replicate_client: ReplicateClient,
+    prompt: str,
+    duration: int = 10,
+    counter_callback: Any = None,
 ) -> str:
-    """Get a soundtrack for the provided prompt."""
-    url = replicate_client.run(
-        REPLICATE_MUSIC_GEN,
+    """Get a soundtrack for the provided prompt, charged by the compute time it used."""
+    prediction = replicate_client.predictions.create(
+        version=REPLICATE_MUSIC_GEN.split(":", 1)[1],
         input={
             "seed": 3442726813,
             "top_k": 250,
@@ -253,76 +344,118 @@ def process_soundtrack(
             "classifier_free_guidance": 3,
         },
     )
-    return url
+    prediction.wait()
+    if prediction.status != "succeeded":
+        raise RuntimeError(
+            f"MusicGen prediction {prediction.status}: {prediction.error}"
+        )
+    predict_time = float((prediction.metrics or {}).get("predict_time") or 0.0)
+    record_api_cost(
+        counter_callback, REPLICATE_MUSIC_GEN, predict_time * A100_USD_PER_SECOND
+    )
+    return str(prediction.output)
 
 
-def generate_images_with_dalle(
+def generate_images(
     shot_prompts: Dict[str, Any],
-    api_key: str,
-    engine: str = "dall-e-3",
-    number_of_images: int = 1,
+    save_dir: str,
+    engine: str = IMAGE_MODEL,
+    counter_callback: Any = None,
 ) -> Dict[str, str]:
-    """Use shot prompts to generate images from DALL-E for video generation."""
-    generated_images = {}
+    """Generate one image per shot prompt and save each as a PNG under ``save_dir``.
+
+    A shot the image model rejects, or whose image data is unusable, is left
+    out. Every other API error, rate limits and auth included, propagates so
+    the key rotation wrapper around ``run`` can act on it.
+
+    :param shot_prompts: shot name to prompt.
+    :param save_dir: directory the PNG files are written to.
+    :param engine: the OpenAI image model.
+    :param counter_callback: the mech cost callback, or None outside the mech.
+    :return: shot name to image path for the shots that were generated.
+    :raises ValueError: when no shot produced an image.
+    """
+    generated_images: Dict[str, str] = {}
+    assert client is not None, "OpenAI client not initialized"
     for shot_number, prompt in shot_prompts.items():
         try:
-            json_params = dict(
+            response = client.images.generate(
                 model=engine,
                 prompt=prompt,
                 size="1024x1024",
-                n=number_of_images,
+                quality="medium",
+                n=1,
             )
-            response = requests.post(
-                "https://api.openai.com/v1/images/generations",
-                headers={
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "Authorization": f"Bearer {api_key}",
-                    "Stability-Client-ID": "mechs-tool",
-                },
-                json=json_params,
-                timeout=30,
-            )
-            response.raise_for_status()
-            body = response.json()
-            if body["data"] and len(body["data"]) > 0:
-                image_url = body["data"][0]["url"]
-                generated_images[shot_number] = image_url
-            else:
-                generated_images[shot_number] = "No image data in response"
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                record_api_cost(
+                    counter_callback,
+                    engine,
+                    int(getattr(usage, "input_tokens", 0) or 0)
+                    * IMAGE_INPUT_USD_PER_M
+                    / 1e6
+                    + int(getattr(usage, "output_tokens", 0) or 0)
+                    * IMAGE_OUTPUT_USD_PER_M
+                    / 1e6,
+                )
+            encoded = response.data[0].b64_json if response.data else None
+            if not encoded:
+                print(f"Skipping {shot_number}, no image data in the response")
+                continue
+            image_path = os.path.join(save_dir, f"{shot_number}.png")
+            with open(image_path, "wb") as handle:
+                handle.write(base64.b64decode(encoded))
+        except (
+            openai.BadRequestError,
+            OSError,
+            ValueError,
+            LookupError,
+            TypeError,
+        ) as e:
+            print(f"Skipping {shot_number}, no image generated: {e}")
+            continue
+        generated_images[shot_number] = image_path
+        print(f"Generated image for {shot_number}: {image_path}")
 
-            print(f"Generated image for {shot_number}: {generated_images[shot_number]}")
-
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            print(f"Error generating image for {shot_number}: {e}")
-            generated_images[shot_number] = str(e)
-
+    if not generated_images:
+        raise ValueError("No shot image could be generated.")
     return generated_images
 
 
 def process_first_shots(
-    replicate_client: ReplicateClient, shot_url: str
+    replicate_client: ReplicateClient,
+    image_path: str,
+    prompt: str,
+    counter_callback: Any = None,
 ) -> Optional[str]:
-    """Process the first video shots using the Replicate API based on the given video prompt."""
-    if not shot_url or not shot_url.startswith("http"):
-        print(f"Invalid URL: {shot_url}")
+    """Animate one shot image into a short clip with Wan 2.2 on Replicate.
+
+    :param replicate_client: the Replicate client.
+    :param image_path: the PNG to animate.
+    :param prompt: the shot description that guides the motion.
+    :param counter_callback: the mech cost callback, or None outside the mech.
+    :return: the clip URL, or None when the call failed.
+    """
+    if not image_path or not os.path.exists(image_path):
+        print(f"Missing shot image: {image_path}")
         return None
 
     try:
-        video_url = replicate_client.run(
-            REPLICATE_STABILITY_STABLE_VIDEO_DIFFUSION,
-            input={
-                "cond_aug": 0.02,
-                "decoding_t": 14,
-                "input_image": shot_url,
-                "video_length": "25_frames_with_svd_xt",
-                "sizing_strategy": "maintain_aspect_ratio",
-                "motion_bucket_id": 127,
-                "frames_per_second": 10,
-            },
-        )
+        with open(image_path, "rb") as image:
+            video_url = replicate_client.run(
+                REPLICATE_WAN_I2V,
+                input={
+                    "image": image,
+                    "prompt": prompt,
+                    "resolution": "480p",
+                    "num_frames": 81,
+                    "frames_per_second": 16,
+                    "go_fast": True,
+                },
+            )
+        record_api_cost(counter_callback, REPLICATE_WAN_I2V, WAN_COST_PER_VIDEO_USD)
         print(f"video_url: {video_url}")
-        return video_url
+        return str(video_url) if video_url else None
     except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error processing video shot: {e}")
         return None
@@ -431,12 +564,7 @@ def run(  # pylint: disable=too-many-locals
     counter_callback = kwargs.get("counter_callback", None)
     tool = kwargs.get("tool")
     if tool not in ALLOWED_TOOLS:
-        return (
-            f"Tool {tool} is not supported by this agent.",
-            user_input,
-            None,
-            counter_callback,
-        )
+        raise InvalidRequestError(f"Tool {tool} is not supported by this agent.")
 
     # Initialize OpenAI client with the provided key
     global client  # pylint: disable=global-statement
@@ -448,13 +576,22 @@ def run(  # pylint: disable=too-many-locals
     tmpdir = tempfile.mkdtemp(prefix="short_maker_")
     # Step 2: Get audio prompts
     print(f"Getting audio prompts for input: {user_input}")
-    audio_prompts = get_audio_prompts(user_input)
+    audio_prompts = get_audio_prompts(user_input, counter_callback=counter_callback)
+    missing = [
+        key
+        for key in AUDIO_PROMPT_KEYS
+        if not isinstance(audio_prompts.get(key), str) or not audio_prompts[key]
+    ]
+    if missing:
+        raise ValueError(f"Audio prompts are missing {', '.join(missing)}.")
 
     # Step 3: Process voiceover
     print("Processing voiceover...")
     voiceover_script = audio_prompts["voiceover_script"]
     voice_choice = audio_prompts["voice"]
-    voiceover = process_voiceover(client_replicate, voiceover_script, voice_choice)
+    voiceover = process_voiceover(
+        client_replicate, voiceover_script, voice_choice, counter_callback
+    )
 
     # Download voiceover and get duration
     print("Downloading voiceover...")
@@ -464,30 +601,38 @@ def run(  # pylint: disable=too-many-locals
 
     # Step 5: Get shot prompts
     print("Getting shot prompts...")
-    shot_prompts = get_shot_prompts(user_input, voiceover_length)
-    assert shot_prompts is not None, "Failed to get shot prompts"
+    shot_prompts = get_shot_prompts(
+        user_input, voiceover_length, counter_callback=counter_callback
+    )
 
-    # Step 6: Generate images with DALL-E
-    print("Generating images with DALL-E...")
-    image_links = generate_images_with_dalle(shot_prompts, openai_key)
-    image = list(image_links.values())[0]
-    first_shot_path = os.path.join(tmpdir, "first_shot")
-    first_shot_path = download_file(image, first_shot_path)
+    # Step 6: Generate one image per shot
+    print("Generating shot images...")
+    image_paths = generate_images(
+        shot_prompts, tmpdir, counter_callback=counter_callback
+    )
+    first_shot_path = list(image_paths.values())[0]
 
     # Steps 7 & 8: Process video shots
     video_urls = [
         url
         for url in (
-            process_first_shots(client_replicate, img_url)
-            for img_url in image_links.values()
+            process_first_shots(
+                client_replicate,
+                path,
+                str(shot_prompts.get(shot, "")),
+                counter_callback,
+            )
+            for shot, path in image_paths.items()
         )
         if url is not None
     ]
+    if not video_urls:
+        raise ValueError("No video shot could be generated.")
 
     # Step 9: Process soundtrack
     soundtrack_prompt = audio_prompts["soundtrack_prompt"]
     soundtrack = process_soundtrack(
-        client_replicate, soundtrack_prompt, voiceover_length
+        client_replicate, soundtrack_prompt, voiceover_length, counter_callback
     )
 
     # Download all video shots and soundtrack
@@ -524,6 +669,10 @@ def run(  # pylint: disable=too-many-locals
         "image": image_hash_,
         "prompt": user_input,
     }
+    # The mech records the last model the callback saw; the script model is
+    # the one that produced the content, the rest are services it paid.
+    if counter_callback is not None and hasattr(counter_callback, "actual_model"):
+        counter_callback.actual_model = TEXT_MODEL
 
     # response text, original prompt, metadata, callback
     return json.dumps(body), user_input, None, counter_callback

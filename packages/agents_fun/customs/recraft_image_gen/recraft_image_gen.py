@@ -27,7 +27,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import requests
 from PIL import Image  # type: ignore[import-not-found]
 from aea_cli_ipfs.ipfs_utils import IPFSTool
-from openai import OpenAI
+from openai import BadRequestError, OpenAI
 
 # Define MechResponse type alias matching the other tools
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
@@ -36,80 +36,106 @@ MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 ALLOWED_TOOLS = [
     "recraft-image-gen",
 ]
+DEFAULT_STYLE = "realistic_image"
+# Recraft returns vector styles (vector_illustration, icon) as SVG, which this
+# tool cannot store as an image; only raster styles are served.
+RASTER_STYLES = ("realistic_image", "digital_illustration", "logo_raster")
+
+# Pinned so the charge does not move with Recraft's server-side default, and
+# on V3 because the ``style`` values this tool accepts (``realistic_image``
+# and the other named styles) are defined for V2/V3; V4 takes ``any``.
+RECRAFT_MODEL = "recraftv3"
+# USD per raster image for RECRAFT_MODEL, recraft.ai/docs/api-reference/pricing.
+RECRAFT_COST_PER_IMAGE_USD = 0.04
 
 
-def _validate_api_keys(api_keys: Any) -> Optional[str]:
+def record_api_cost(
+    counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
+) -> None:
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
+    if counter_callback is None or cost_usd <= 0:
+        return
+    try:
+        counter_callback(
+            input_tokens=0,
+            output_tokens=0,
+            model=model,
+            token_counter=lambda text, model: 0,
+            call_cost=cost_usd,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"Could not report the {model} cost to the mech: {exc}")
+
+
+class InvalidRequestError(ValueError):
+    """The request cannot be served as sent: the fault is in the buyer's input.
+
+    The mech matches this class name to tell a client-side error apart from
+    a tool or provider failure. Raise it only for faults in the request.
+    """
+
+
+def _validate_api_keys(api_keys: Any) -> None:
     required_methods = ["max_retries", "rotate", "get"]
     if not all(hasattr(api_keys, method) for method in required_methods):
-        return (
+        raise TypeError(
             "api_keys object does not have required methods (max_retries, rotate, get)"
         )
-    return None
-
-
-def _create_error_response(error_msg: str, **kwargs: Any) -> MechResponse:
-    prompt_val = kwargs.get("prompt", "N/A")
-    callback_val = kwargs.get("counter_callback", None)
-    return error_msg, prompt_val, None, callback_val, None
-
-
-def _handle_rate_limit_error(
-    e: Exception, service: str, retries_left: Dict[str, int], api_keys: Any
-) -> None:
-    if retries_left.get(service, 0) <= 0:
-        print(f"No retries left for service: {service}")
-        raise e
-    retries_left[service] -= 1
-    print(
-        f"Rate limit error for {service}. Retries left: {retries_left[service]}. Rotating key."
-    )
-    api_keys.rotate(service)
 
 
 def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
-    """Wrap function with API key rotation logic."""
+    """Append the keychain to the result. Recraft has a single key, so nothing rotates."""
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> MechResponse:
         api_keys = kwargs["api_keys"]
-        validation_error = _validate_api_keys(api_keys)
-        if validation_error:
-            return _create_error_response(validation_error, **kwargs)
-        _ = api_keys.max_retries()
-
-        def execute() -> MechResponse:
-            try:
-                result = func(*args, **kwargs)
-                return result + (api_keys,)
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                print(f"An unexpected error occurred: {e}")
-                error_response = str(e)
-                prompt_value = kwargs.get(
-                    "prompt", "Prompt not available in error context"
-                )
-                callback_value = kwargs.get("counter_callback", None)
-                return error_response, prompt_value, None, callback_value, api_keys
-
-        return execute()
+        _validate_api_keys(api_keys)
+        result = func(*args, **kwargs)
+        return result + (api_keys,)
 
     return wrapper
 
 
-def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> Optional[str]:
+def _validate_inputs(tool: Optional[str], style: Any, api_key: Optional[str]) -> None:
+    """Validate the tool, the style and the API key.
+
+    :param tool: the requested tool name.
+    :param style: the requested Recraft style.
+    :param api_key: the Recraft API key.
+    :raises InvalidRequestError: if the tool or the style is not supported.
+    :raises ValueError: if the key is missing.
+    """
     if tool not in ALLOWED_TOOLS:
-        return f"Tool {tool} is not supported by this agent."
+        raise InvalidRequestError(f"Tool {tool} is not supported by this agent.")
+    if style not in RASTER_STYLES:
+        raise InvalidRequestError(
+            f"Style {style!r} is not supported; use one of {', '.join(RASTER_STYLES)}."
+        )
     if not api_key:
-        return "Recraft API key (RECRAFT_API_KEY) not provided."
-    return None
+        raise ValueError("Recraft API key (RECRAFT_API_KEY) not provided.")
 
 
 def _generate_content(prompt: str, style: str, api_key: str) -> Any:
-    """Generate image content using the Recraft API."""
+    """Generate image content using the Recraft API.
+
+    :param prompt: the image prompt.
+    :param style: the Recraft style.
+    :param api_key: the Recraft API key.
+    :return: the Recraft images response.
+    :raises InvalidRequestError: if Recraft rejects the request as invalid.
+    """
     client = OpenAI(
         base_url="https://external.api.recraft.ai/v1",
         api_key=api_key,
     )
-    return client.images.generate(prompt=prompt, style=style)  # type: ignore[arg-type]
+    try:
+        return client.images.generate(
+            model=RECRAFT_MODEL, prompt=prompt, style=style  # type: ignore[arg-type]
+        )
+    except BadRequestError as e:
+        raise InvalidRequestError(
+            f"The image provider rejected the request: {e.message}"
+        ) from e
 
 
 def _extract_image_url_from_response(response: Any) -> Optional[str]:
@@ -119,27 +145,21 @@ def _extract_image_url_from_response(response: Any) -> Optional[str]:
     return None
 
 
-def _download_image(image_url: str) -> Optional[bytes]:
+def _download_image(image_url: str) -> bytes:
     """Download an image from a URL."""
-    try:
-        resp = requests.get(image_url, timeout=30)
-        resp.raise_for_status()
-        return resp.content
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"Failed to download image: {e}")
-        return None
+    resp = requests.get(image_url, timeout=30)
+    resp.raise_for_status()
+    return resp.content
 
 
-def _process_image_and_upload(image_data: bytes) -> Tuple[Optional[str], Optional[str]]:
+def _process_image_and_upload(image_data: bytes) -> str:
     image = Image.open(BytesIO(image_data), formats=("PNG", "JPEG", "WEBP"))
     temp_image_path = f"temp_generated_image_{os.getpid()}.png"
     try:
         image.save(temp_image_path)
         ipfs_tool = IPFSTool()
         _, image_hash, _ = ipfs_tool.add(temp_image_path)
-        return image_hash, None
-    except FileNotFoundError:
-        return None, "IPFS tool not found or not configured correctly."
+        return image_hash
     finally:
         if os.path.exists(temp_image_path):
             os.remove(temp_image_path)
@@ -154,35 +174,20 @@ def _prepare_result(image_hash: str, prompt: str, style: str) -> str:
 def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], Any]:
     """Run the recraft image generation tool."""
     prompt = kwargs["prompt"]
-    style = kwargs.get("style", "realistic_image")
+    style = kwargs.get("style", DEFAULT_STYLE)
     api_key = kwargs["api_keys"].get("recraft_api_key")
     tool = kwargs.get("tool")
     counter_callback = kwargs.get("counter_callback", None)
 
-    validation_error = _validate_inputs(tool, api_key)
-    if validation_error:
-        return validation_error, prompt, None, counter_callback
+    _validate_inputs(tool, style, api_key)
 
-    try:
-        response = _generate_content(prompt, style, api_key)
-        print("[DEBUG] Raw response from Recraft API:", response)
-        image_url = _extract_image_url_from_response(response)
-        if image_url is None:
-            return (
-                "No image URL found in response.data[0].url.",
-                prompt,
-                None,
-                counter_callback,
-            )
-        image_bytes = _download_image(image_url)
-        if image_bytes is None:
-            return "Failed to download image from URL.", prompt, None, counter_callback
-        image_hash, upload_error = _process_image_and_upload(image_bytes)
-        if upload_error:
-            return upload_error, prompt, None, counter_callback
-        assert image_hash is not None
-        result = _prepare_result(image_hash, prompt, style)
-        return result, prompt, None, counter_callback
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"An unexpected error occurred: {e}")
-        return f"An error occurred: {e}", prompt, None, counter_callback
+    response = _generate_content(prompt, style, api_key)
+    print("[DEBUG] Raw response from Recraft API:", response)
+    image_url = _extract_image_url_from_response(response)
+    if image_url is None:
+        raise ValueError("No image URL found in response.data[0].url.")
+    record_api_cost(counter_callback, RECRAFT_MODEL, RECRAFT_COST_PER_IMAGE_USD)
+    image_bytes = _download_image(image_url)
+    image_hash = _process_image_and_upload(image_bytes)
+    result = _prepare_result(image_hash, prompt, style)
+    return result, prompt, None, counter_callback

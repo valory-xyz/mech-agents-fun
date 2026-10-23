@@ -52,10 +52,10 @@ skills:
 - valory/transaction_settlement_abci:0.1.0:bafybeihizaapype5sz7vlosms3nfo6jzfj4ujycuf5uthviq2otvmw6f6m
 - valory/websocket_client:0.1.0:bafybeiht2ify5vkseeulutzjwkw5vcmhcwtun2o5ehn6hya6uz4eanua2m
 customs:
-- agents_fun/google_image_gen:0.1.0:bafybeiczdxwwottbwphberpnrlv6abp3g4ccin265qnkkd3j56h3rjvrmi
-- agents_fun/short_maker:0.1.0:bafybeialdibotrsz7l64346iwgczuaqhk3y7ge6ozyzadpgxvhswz7gwpa
-- agents_fun/stability_ai_request:0.1.0:bafybeihndmvigf7vufvwbg24mbdhgbqqlrbuanr6sm5qtoavvmbautsd3e
-- valory/superforcaster:0.1.0:bafybeidwdixsstuexhtgrzhl5tpcx2ezkvb2oace62z32ty52z5wdradna
+- agents_fun/google_image_gen:0.1.0:bafybeicrocykarszfztrta4u5owiuiz7rz5feal66gpjc3ywgtphmc5p6a
+- agents_fun/short_maker:0.1.0:bafybeihybqnferjoesby2ebx7fkz7kk2zrsdqq5ifr6bwklybujawobdna
+- agents_fun/stability_ai_request:0.1.0:bafybeib2zv6uj7rjtfug2ucifdwse4bkqjzotfju6mcvu4omqlajf4hbge
+- valory/superforcaster:0.1.0:bafybeihfsi3im3jubol4m67h3s2ddwxwgmaanvl33rmbzvhedbazgtilcq
 default_ledger: ethereum
 required_ledgers:
 - ethereum

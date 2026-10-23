@@ -6,8 +6,10 @@ description: A tool to generate images from text using Recraft AI.
 license: Apache-2.0
 aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
-  __init__.py: bafybeihzptvbp7cy4m3i2wy7qhva7zqbae2olpzk2cnax6ox5fg6atwrby
-  recraft_image_gen.py: bafybeigq2qamcscrfwufy4x3qfudehse63q33uhvtgbhfq577zrdmaxrka
+  __init__.py: bafybeiglo5n4m7xrxm7oi6mgquik3adxihqcrcxppehmmwkezya6bxzhky
+  recraft_image_gen.py: bafybeibynepyk4cvd4ay7g2msr4xrtd7nqv6ctdf3t7qfv6nhvio7xkqi4
+  tests/__init__.py: bafybeigk5a5nmr64pfovynkscmx7mrcn26xqrsh6ylmibfckm2zpv2cmpe
+  tests/test_recraft_image_gen.py: bafybeif5iuao6bc2o3ildcepbghxduldl3tvncckztlw7qwqwbjzr2vbrq
 fingerprint_ignore_patterns: []
 entry_point: recraft_image_gen.py
 callable: run
