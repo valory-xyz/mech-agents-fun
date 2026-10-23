@@ -29,13 +29,20 @@ from packages.agents_fun.customs.stability_ai_request import (
     stabilityai_request as module,
 )
 
-from tests.tool_test_helpers import FakeKeyChain, openai_rate_limit_error
+from tests.tool_test_helpers import (
+    FakeKeyChain,
+    assert_invalid_request_contract,
+    assert_not_invalid_request,
+    openai_rate_limit_error,
+)
 
 TOOL = "stabilityai-stable-diffusion-xl-1024-v1-0"
 PROMPT = "a quiet forest"
 STABILITY_KEY = "stability-test"
 HTTP_OK = 200
 HTTP_BAD_REQUEST = 400
+HTTP_FORBIDDEN = 403
+HTTP_SERVER_ERROR = 500
 SUCCESS_BODY = {"artifacts": [{"base64": "AAAA"}]}
 RETRY_RESULT = ("retry answer", None, None, None)
 
@@ -61,11 +68,25 @@ def _run(api_keys: FakeKeyChain, tool: str = TOOL) -> tuple:
     return module.run(prompt=PROMPT, tool=tool, api_keys=api_keys)
 
 
-def test_run_raises_on_non_200_response(post: MagicMock) -> None:
-    """A non-200 answer from Stability raises with the status in the message."""
+def test_bad_request_is_an_invalid_request(post: MagicMock) -> None:
+    """A 400 from Stability is a fault in the request, with the reason kept."""
     post.return_value = MagicMock(status_code=HTTP_BAD_REQUEST, text="bad height")
-    with pytest.raises(requests.HTTPError, match=f"{HTTP_BAD_REQUEST}.*bad height"):
+    with pytest.raises(module.InvalidRequestError, match="rejected.*bad height"):
         _run(_api_keys())
+
+
+@pytest.mark.parametrize("status", [HTTP_FORBIDDEN, HTTP_SERVER_ERROR])
+def test_other_non_200_responses_are_mech_side(post: MagicMock, status: int) -> None:
+    """Any other non-200 answer raises HTTPError with the status in the message."""
+    post.return_value = MagicMock(status_code=status, text="no access")
+    with pytest.raises(requests.HTTPError, match=f"{status}.*no access") as err:
+        _run(_api_keys())
+    assert_not_invalid_request(err.value)
+
+
+def test_invalid_request_error_matches_the_mech_contract() -> None:
+    """The mech recognises a client-side error by this exact class name."""
+    assert_invalid_request_contract(module.InvalidRequestError)
 
 
 def test_run_raises_on_network_error(post: MagicMock) -> None:
@@ -108,7 +129,9 @@ def test_wrapper_propagates_non_rate_limit_error() -> None:
 def test_unsupported_tool_raises_before_any_provider_call(
     post: MagicMock, tool: str
 ) -> None:
-    """An unsupported tool raises instead of answering with a message."""
-    with pytest.raises(ValueError, match="not in the list of supported tools"):
+    """An unsupported tool is a fault in the request; nothing is called."""
+    with pytest.raises(
+        module.InvalidRequestError, match="not in the list of supported tools"
+    ):
         _run(_api_keys(), tool=tool)
     post.assert_not_called()

@@ -27,6 +27,9 @@ import openai
 OPENAI_TEST_URL = "https://api.openai.com/v1/test"
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_UNAUTHORIZED = 401
+HTTP_BAD_REQUEST = 400
+HTTP_SERVER_ERROR = 500
+INVALID_REQUEST_ERROR_NAME = "InvalidRequestError"
 
 
 class FakeKeyChain(dict):
@@ -66,3 +69,34 @@ def openai_auth_error() -> openai.AuthenticationError:
     return openai.AuthenticationError(
         "invalid key", response=_openai_response(HTTP_UNAUTHORIZED), body=None
     )
+
+
+def openai_bad_request_error() -> openai.BadRequestError:
+    """Build the error the OpenAI SDK raises on HTTP 400."""
+    return openai.BadRequestError(
+        "prompt rejected", response=_openai_response(HTTP_BAD_REQUEST), body=None
+    )
+
+
+def openai_server_error() -> openai.InternalServerError:
+    """Build the error the OpenAI SDK raises on HTTP 500."""
+    return openai.InternalServerError(
+        "backend down", response=_openai_response(HTTP_SERVER_ERROR), body=None
+    )
+
+
+def assert_invalid_request_contract(error_cls: type) -> None:
+    """Check a tool's client-side error class against the mech contract.
+
+    :param error_cls: the tool module's InvalidRequestError.
+    """
+    assert error_cls.__name__ == INVALID_REQUEST_ERROR_NAME
+    assert issubclass(error_cls, ValueError)
+
+
+def assert_not_invalid_request(error: BaseException) -> None:
+    """Check an error is reported as a failure on the mech's side.
+
+    :param error: the raised exception.
+    """
+    assert type(error).__name__ != INVALID_REQUEST_ERROR_NAME

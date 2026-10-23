@@ -48,6 +48,15 @@ ALLOWED_TOOLS = [
     "short_maker",
 ]
 
+
+class InvalidRequestError(ValueError):
+    """The request cannot be served as sent: the fault is in the buyer's input.
+
+    The mech matches this class name to tell a client-side error apart from
+    a tool or provider failure. Raise it only for faults in the request.
+    """
+
+
 REPLICATE_MUSIC_GEN = (
     "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
 )
@@ -417,7 +426,7 @@ def run(  # pylint: disable=too-many-locals
     counter_callback = kwargs.get("counter_callback", None)
     tool = kwargs.get("tool")
     if tool not in ALLOWED_TOOLS:
-        raise ValueError(f"Tool {tool} is not supported by this agent.")
+        raise InvalidRequestError(f"Tool {tool} is not supported by this agent.")
 
     # Initialize OpenAI client with the provided key
     global client  # pylint: disable=global-statement

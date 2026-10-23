@@ -21,23 +21,40 @@
 
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 from unittest.mock import MagicMock
 
 import pytest
 from google.api_core import exceptions as google_exceptions
+from google.genai import errors as genai_errors
 
 from packages.agents_fun.customs.google_video_gen import google_video_gen as module
 
-from tests.tool_test_helpers import FakeKeyChain
+from tests.tool_test_helpers import (
+    FakeKeyChain,
+    HTTP_BAD_REQUEST,
+    assert_invalid_request_contract,
+    assert_not_invalid_request,
+)
 
 TOOL = "google_video_gen"
 PROMPT = "ocean waves at night"
 GEMINI_KEY = "gemini-test"
 AUDIO_HASH = "bafy-audio"
 GOOGLE_SERVICE = "google_api_key"
+KEY_VALUE = GEMINI_KEY
+HTTP_FORBIDDEN = 403
 SCRIPT_RESPONSE_TEXT = "Voiceover: The sea keeps time.\nVoice: kore"
 PCM_SILENCE = b"\x00\x00" * 16
+
+
+def _genai_client_error(
+    code: int, status: str = "INVALID_ARGUMENT", message: str = "prompt rejected"
+) -> genai_errors.ClientError:
+    """Build the error the Google GenAI SDK raises on a 4xx answer."""
+    return genai_errors.ClientError(
+        code, {"error": {"code": code, "message": message, "status": status}}
+    )
 
 
 def _script_response() -> MagicMock:
@@ -86,6 +103,53 @@ def test_run_raises_on_provider_error(
         _run(FakeKeyChain({"gemini_api_key": GEMINI_KEY}))
 
 
+def test_provider_bad_request_on_the_prompt_is_an_invalid_request(
+    genai_client: MagicMock,
+) -> None:
+    """A 400 on the call that carries the buyer's prompt is a fault in the request."""
+    error = _genai_client_error(HTTP_BAD_REQUEST)
+    genai_client.models.generate_content.side_effect = error
+    with pytest.raises(module.InvalidRequestError, match="prompt rejected") as err:
+        _run(FakeKeyChain({"gemini_api_key": GEMINI_KEY}))
+    assert err.value.__cause__ is error
+
+
+def test_provider_bad_request_on_tts_is_mech_side(genai_client: MagicMock) -> None:
+    """A 400 on the TTS call, which carries model-written text, stays mech-side."""
+    genai_client.models.generate_content.side_effect = [
+        _script_response(),
+        _genai_client_error(HTTP_BAD_REQUEST),
+    ]
+    with pytest.raises(genai_errors.ClientError) as err:
+        _run(FakeKeyChain({"gemini_api_key": GEMINI_KEY}))
+    assert_not_invalid_request(err.value)
+
+
+@pytest.mark.parametrize(
+    ("code", "status", "message"),
+    [
+        (HTTP_FORBIDDEN, "PERMISSION_DENIED", "forbidden"),
+        (
+            HTTP_BAD_REQUEST,
+            "INVALID_ARGUMENT",
+            "API key not valid. Please pass a valid API key.",
+        ),
+        (HTTP_BAD_REQUEST, "FAILED_PRECONDITION", "User location is not supported"),
+    ],
+    ids=["forbidden", "invalid-key", "failed-precondition"],
+)
+def test_key_account_and_other_client_errors_are_mech_side(
+    genai_client: MagicMock, code: int, status: str, message: str
+) -> None:
+    """A bad key, a failed precondition or a non-400 error stays mech-side."""
+    genai_client.models.generate_content.side_effect = _genai_client_error(
+        code, status, message
+    )
+    with pytest.raises(genai_errors.ClientError) as err:
+        _run(FakeKeyChain({"gemini_api_key": GEMINI_KEY}))
+    assert_not_invalid_request(err.value)
+
+
 def test_run_raises_when_tts_returns_no_audio(genai_client: MagicMock) -> None:
     """A TTS response without audio is a failed run, not an answer."""
     genai_client.models.generate_content.side_effect = [
@@ -125,20 +189,29 @@ def test_rate_limit_reraises_when_no_retries_left(genai_client: MagicMock) -> No
     assert api_keys.rotated == []
 
 
-@pytest.mark.parametrize(
-    ("tool", "keys", "message"),
-    [
-        ("other_tool", {"gemini_api_key": GEMINI_KEY}, "not supported"),
-        (TOOL, {"gemini_api_key": ""}, "GEMINI_API_KEY"),
-        (TOOL, {}, "GEMINI_API_KEY"),
-    ],
-)
-def test_invalid_request_raises_before_any_provider_call(
-    genai_client: MagicMock, tool: str, keys: Dict[str, str], message: str
+def test_invalid_request_error_matches_the_mech_contract() -> None:
+    """The mech recognises a client-side error by this exact class name."""
+    assert_invalid_request_contract(module.InvalidRequestError)
+
+
+@pytest.mark.parametrize("tool", ["other_tool", "", None])
+def test_unsupported_tool_is_an_invalid_request(
+    genai_client: MagicMock, tool: Optional[str]
 ) -> None:
-    """An unsupported tool or a missing key raises before any paid call."""
-    with pytest.raises(ValueError, match=message):
-        _run(FakeKeyChain(keys), tool=tool)
+    """An unsupported tool is a fault in the request; nothing is called."""
+    with pytest.raises(module.InvalidRequestError, match="not supported"):
+        _run(FakeKeyChain({"gemini_api_key": KEY_VALUE}), tool=tool)  # type: ignore[arg-type]
+    genai_client.models.generate_content.assert_not_called()
+
+
+@pytest.mark.parametrize("keys", [{"gemini_api_key": ""}, {}])
+def test_missing_key_is_a_mech_side_error(
+    genai_client: MagicMock, keys: Dict[str, str]
+) -> None:
+    """A missing operator key raises a plain ValueError before any paid call."""
+    with pytest.raises(ValueError, match="GEMINI_API_KEY") as err:
+        _run(FakeKeyChain(keys))
+    assert_not_invalid_request(err.value)
     genai_client.models.generate_content.assert_not_called()
 
 

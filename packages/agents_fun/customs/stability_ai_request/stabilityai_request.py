@@ -59,6 +59,15 @@ ENGINE_SIZE_CHART = {
 }
 
 ALLOWED_TOOLS = [PREFIX + value for value in ENGINES["picture"]]
+HTTP_BAD_REQUEST = 400
+
+
+class InvalidRequestError(ValueError):
+    """The request cannot be served as sent: the fault is in the buyer's input.
+
+    The mech matches this class name to tell a client-side error apart from
+    a tool or provider failure. Raise it only for faults in the request.
+    """
 
 
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
@@ -139,7 +148,7 @@ def run(  # pylint: disable=too-many-locals
     prompt = kwargs["prompt"]
 
     if tool not in ALLOWED_TOOLS:
-        raise ValueError(f"Tool {tool} is not in the list of supported tools.")
+        raise InvalidRequestError(f"Tool {tool} is not in the list of supported tools.")
 
     # Place content moderation request here if needed
     engine = tool.replace(PREFIX, "")
@@ -191,6 +200,10 @@ def run(  # pylint: disable=too-many-locals
         json=json_params,
         timeout=30,
     )
+    if response.status_code == HTTP_BAD_REQUEST:
+        raise InvalidRequestError(
+            f"Stability AI rejected the request: {response.text[:500]}"
+        )
     if response.status_code != 200:
         raise requests.HTTPError(
             f"Non-200 response ({response.status_code}): {response.text}",

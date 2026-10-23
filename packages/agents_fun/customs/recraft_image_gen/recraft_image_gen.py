@@ -27,7 +27,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import requests
 from PIL import Image  # type: ignore[import-not-found]
 from aea_cli_ipfs.ipfs_utils import IPFSTool
-from openai import OpenAI
+from openai import BadRequestError, OpenAI
 
 # Define MechResponse type alias matching the other tools
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
@@ -36,6 +36,14 @@ MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 ALLOWED_TOOLS = [
     "recraft-image-gen",
 ]
+
+
+class InvalidRequestError(ValueError):
+    """The request cannot be served as sent: the fault is in the buyer's input.
+
+    The mech matches this class name to tell a client-side error apart from
+    a tool or provider failure. Raise it only for faults in the request.
+    """
 
 
 def _validate_api_keys(api_keys: Any) -> None:
@@ -61,18 +69,30 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
 
 def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> None:
     if tool not in ALLOWED_TOOLS:
-        raise ValueError(f"Tool {tool} is not supported by this agent.")
+        raise InvalidRequestError(f"Tool {tool} is not supported by this agent.")
     if not api_key:
         raise ValueError("Recraft API key (RECRAFT_API_KEY) not provided.")
 
 
 def _generate_content(prompt: str, style: str, api_key: str) -> Any:
-    """Generate image content using the Recraft API."""
+    """Generate image content using the Recraft API.
+
+    :param prompt: the image prompt.
+    :param style: the Recraft style.
+    :param api_key: the Recraft API key.
+    :return: the Recraft images response.
+    :raises InvalidRequestError: if Recraft rejects the request as invalid.
+    """
     client = OpenAI(
         base_url="https://external.api.recraft.ai/v1",
         api_key=api_key,
     )
-    return client.images.generate(prompt=prompt, style=style)  # type: ignore[arg-type]
+    try:
+        return client.images.generate(prompt=prompt, style=style)  # type: ignore[arg-type]
+    except BadRequestError as e:
+        raise InvalidRequestError(
+            f"The image provider rejected the request: {e.message}"
+        ) from e
 
 
 def _extract_image_url_from_response(response: Any) -> Optional[str]:

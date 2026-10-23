@@ -213,6 +213,14 @@ COMPLETION_RETRIES = 3
 COMPLETION_DELAY = 2
 
 
+class InvalidRequestError(ValueError):
+    """The request cannot be served as sent: the fault is in the buyer's input.
+
+    The mech matches this class name to tell a client-side error apart from
+    a tool or provider failure. Raise it only for faults in the request.
+    """
+
+
 SYSTEM_PROMPT = "You are a helpful assistant."
 
 PREDICTION_PROMPT = """
@@ -447,7 +455,7 @@ def run(**kwargs: Any) -> MechResponse:
     """Run the task"""
     tool = kwargs["tool"]
     if tool not in ALLOWED_TOOLS:
-        raise ValueError(f"Tool {tool} is not supported.")
+        raise InvalidRequestError(f"Tool {tool} is not supported.")
 
     model = kwargs.get("model")
     if model is None:

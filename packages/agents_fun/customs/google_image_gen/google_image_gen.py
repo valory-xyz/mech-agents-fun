@@ -32,17 +32,27 @@ from google import genai  # type: ignore[import-not-found]
 from google.api_core import (
     exceptions as google_exceptions,  # type: ignore[import-not-found]
 )
+from google.genai import errors as genai_errors  # type: ignore[import-not-found]
 from google.genai import types  # type: ignore[import-not-found]
 
 # Define MechResponse type alias matching the other tools
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
 DEFAULT_MODEL = "imagen-4.0-generate-001"
+HTTP_BAD_REQUEST = 400
 
 # Define allowed tools for this module
 ALLOWED_TOOLS = [
     "google_image_gen",
 ]
+
+
+class InvalidRequestError(ValueError):
+    """The request cannot be served as sent: the fault is in the buyer's input.
+
+    The mech matches this class name to tell a client-side error apart from
+    a tool or provider failure. Raise it only for faults in the request.
+    """
 
 
 def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
@@ -117,15 +127,32 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
     return wrapper
 
 
+def _is_request_rejection(error: genai_errors.ClientError) -> bool:
+    """Whether Gemini rejected the request itself, not the operator's key or account.
+
+    Gemini also answers 400 for an invalid API key and for a failed
+    precondition (unsupported region, billing), which are not request faults.
+
+    :param error: the Google GenAI client error.
+    :return: True for a 400 INVALID_ARGUMENT that is not about the API key.
+    """
+    if error.code != HTTP_BAD_REQUEST or error.status != "INVALID_ARGUMENT":
+        return False
+    return "API_KEY_INVALID" not in str(error.details) and "API key" not in str(
+        error.message or ""
+    )
+
+
 def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> None:
     """Validate tool and API key.
 
     :param tool: the requested tool name.
     :param api_key: the Gemini API key.
-    :raises ValueError: if the tool is not supported or the key is missing.
+    :raises InvalidRequestError: if the tool is not supported.
+    :raises ValueError: if the key is missing.
     """
     if tool not in ALLOWED_TOOLS:
-        raise ValueError(f"Tool {tool} is not supported by this agent.")
+        raise InvalidRequestError(f"Tool {tool} is not supported by this agent.")
     if not api_key:
         raise ValueError("Google API key (GEMINI_API_KEY) not provided.")
 
@@ -139,13 +166,21 @@ def _generate_image_from_google_api(
     :param prompt: the image prompt.
     :param model_name: the Imagen model to use.
     :return: the generated image bytes.
+    :raises InvalidRequestError: if the provider rejects the request as invalid.
     :raises ValueError: if the response carries no image bytes.
     """
-    response = client.models.generate_images(
-        model=model_name,  # type: ignore[arg-type]
-        prompt=prompt,
-        config=types.GenerateImagesConfig(number_of_images=1),
-    )
+    try:
+        response = client.models.generate_images(
+            model=model_name,  # type: ignore[arg-type]
+            prompt=prompt,
+            config=types.GenerateImagesConfig(number_of_images=1),
+        )
+    except genai_errors.ClientError as e:
+        if not _is_request_rejection(e):
+            raise
+        raise InvalidRequestError(
+            f"The image provider rejected the request: {e.message}"
+        ) from e
 
     if not response.generated_images:
         raise ValueError(

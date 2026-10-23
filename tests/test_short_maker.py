@@ -28,6 +28,7 @@ from packages.agents_fun.customs.short_maker import short_maker as module
 
 from tests.tool_test_helpers import (
     FakeKeyChain,
+    assert_invalid_request_contract,
     openai_auth_error,
     openai_rate_limit_error,
 )
@@ -129,8 +130,14 @@ def test_generate_images_raises_on_failed_shot(
         module.generate_images_with_dalle(SHOT_PROMPTS, OPENAI_KEY)
 
 
-def test_unsupported_tool_raises_before_any_provider_call(chat: MagicMock) -> None:
-    """An unsupported tool raises instead of answering with a message."""
-    with pytest.raises(ValueError, match="other_tool is not supported"):
-        _run(_api_keys(), tool="other_tool")
+def test_invalid_request_error_matches_the_mech_contract() -> None:
+    """The mech recognises a client-side error by this exact class name."""
+    assert_invalid_request_contract(module.InvalidRequestError)
+
+
+@pytest.mark.parametrize("tool", ["other_tool", ""])
+def test_unsupported_tool_is_an_invalid_request(chat: MagicMock, tool: str) -> None:
+    """An unsupported tool is a fault in the request; nothing is called."""
+    with pytest.raises(module.InvalidRequestError, match="is not supported"):
+        _run(_api_keys(), tool=tool)
     chat.assert_not_called()

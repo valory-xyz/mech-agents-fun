@@ -434,3 +434,34 @@ class TestFailedRunRaises:
         assert json.loads(result[0])["p_no"] == FAKE_PREDICTION.p_no
         assert all("max_cost" not in c.kwargs for c in counter_callback.call_args_list)
         counter_callback.assert_called_once()
+
+
+class TestClientFaultClassification:
+    """Only faults in the request raise InvalidRequestError."""
+
+    def test_invalid_request_error_matches_the_mech_contract(self) -> None:
+        """The mech recognises a client-side error by this exact class name."""
+        assert module.InvalidRequestError.__name__ == "InvalidRequestError"
+        assert issubclass(module.InvalidRequestError, ValueError)
+
+    @pytest.mark.parametrize("tool", ["other_tool", "", None])
+    def test_unsupported_tool_is_an_invalid_request(self, tool: object) -> None:
+        """An unsupported tool is a fault in the request."""
+        with pytest.raises(module.InvalidRequestError, match="is not supported"):
+            run(
+                tool=tool,
+                model=MODEL,
+                prompt=PREDICTION_PROMPT,
+                api_keys=_FakeKeyChain(retries=0),
+            )
+
+    def test_missing_model_is_a_mech_side_error(self) -> None:
+        """No model means no operator default, a failure on the mech's side."""
+        with pytest.raises(ValueError, match="Model not supplied") as err:
+            run(
+                tool="superforcaster",
+                model=None,
+                prompt=PREDICTION_PROMPT,
+                api_keys=_FakeKeyChain(retries=0),
+            )
+        assert type(err.value).__name__ != "InvalidRequestError"

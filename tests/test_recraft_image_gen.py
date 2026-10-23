@@ -22,7 +22,7 @@
 import json
 from io import BytesIO
 from pathlib import Path
-from typing import Callable, Dict
+from typing import Callable, Dict, Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -33,8 +33,12 @@ from packages.agents_fun.customs.recraft_image_gen import recraft_image_gen as m
 
 from tests.tool_test_helpers import (
     FakeKeyChain,
+    assert_invalid_request_contract,
+    assert_not_invalid_request,
     openai_auth_error,
+    openai_bad_request_error,
     openai_rate_limit_error,
+    openai_server_error,
 )
 
 TOOL = "recraft-image-gen"
@@ -42,6 +46,7 @@ PROMPT = "a red bicycle"
 RECRAFT_KEY = "recraft-test"
 IMAGE_URL = "https://img.recraft.test/1.png"
 IMAGE_HASH = "bafy-recraft"
+KEY_VALUE = RECRAFT_KEY
 
 
 def _png_bytes() -> bytes:
@@ -78,7 +83,9 @@ def _run(api_keys: FakeKeyChain, tool: str = TOOL) -> tuple:
     )
 
 
-@pytest.mark.parametrize("make_error", [openai_auth_error, openai_rate_limit_error])
+@pytest.mark.parametrize(
+    "make_error", [openai_auth_error, openai_rate_limit_error, openai_server_error]
+)
 def test_run_raises_on_provider_error(
     boundaries: MagicMock, make_error: Callable[[], Exception]
 ) -> None:
@@ -86,9 +93,19 @@ def test_run_raises_on_provider_error(
     error = make_error()
     boundaries.images.generate.side_effect = error
     api_keys = _api_keys()
-    with pytest.raises(type(error)):
+    with pytest.raises(type(error)) as err:
         _run(api_keys)
+    assert_not_invalid_request(err.value)
     assert api_keys.rotated == []
+
+
+def test_provider_bad_request_is_an_invalid_request(boundaries: MagicMock) -> None:
+    """A 400 from Recraft is a fault in the request."""
+    error = openai_bad_request_error()
+    boundaries.images.generate.side_effect = error
+    with pytest.raises(module.InvalidRequestError, match="prompt rejected") as err:
+        _run(_api_keys())
+    assert err.value.__cause__ is error
 
 
 def test_run_raises_when_response_has_no_url(boundaries: MagicMock) -> None:
@@ -115,20 +132,29 @@ def test_successful_run_appends_keychain(boundaries: MagicMock) -> None:
     assert result[-1] is api_keys
 
 
-@pytest.mark.parametrize(
-    ("tool", "keys", "message"),
-    [
-        ("other_tool", {"recraft_api_key": RECRAFT_KEY}, "not supported"),
-        (TOOL, {"recraft_api_key": ""}, "RECRAFT_API_KEY"),
-        (TOOL, {}, "RECRAFT_API_KEY"),
-    ],
-)
-def test_invalid_request_raises_before_any_provider_call(
-    boundaries: MagicMock, tool: str, keys: Dict[str, str], message: str
+def test_invalid_request_error_matches_the_mech_contract() -> None:
+    """The mech recognises a client-side error by this exact class name."""
+    assert_invalid_request_contract(module.InvalidRequestError)
+
+
+@pytest.mark.parametrize("tool", ["other_tool", "", None])
+def test_unsupported_tool_is_an_invalid_request(
+    boundaries: MagicMock, tool: Optional[str]
 ) -> None:
-    """An unsupported tool or a missing key raises before any paid call."""
-    with pytest.raises(ValueError, match=message):
-        _run(FakeKeyChain(keys), tool=tool)
+    """An unsupported tool is a fault in the request; nothing is called."""
+    with pytest.raises(module.InvalidRequestError, match="not supported"):
+        _run(FakeKeyChain({"recraft_api_key": KEY_VALUE}), tool=tool)  # type: ignore[arg-type]
+    boundaries.images.generate.assert_not_called()
+
+
+@pytest.mark.parametrize("keys", [{"recraft_api_key": ""}, {}])
+def test_missing_key_is_a_mech_side_error(
+    boundaries: MagicMock, keys: Dict[str, str]
+) -> None:
+    """A missing operator key raises a plain ValueError before any paid call."""
+    with pytest.raises(ValueError, match="RECRAFT_API_KEY") as err:
+        _run(FakeKeyChain(keys))
+    assert_not_invalid_request(err.value)
     boundaries.images.generate.assert_not_called()
 
 
