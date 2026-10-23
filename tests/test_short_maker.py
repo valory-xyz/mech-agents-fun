@@ -155,19 +155,20 @@ def test_generate_images_skips_a_failed_shot(
     assert Path(paths["shot2_prompt"]).read_bytes() == IMAGE_BYTES
 
 
-def test_generate_images_skips_a_request_error(
+def test_generate_images_raises_on_a_request_error(
     images: MagicMock, tmp_path: Path
 ) -> None:
-    """A shot whose request fails outright is left out."""
+    """A shot whose request fails outright stops the image step."""
     images.side_effect = [_image_timeout(), _image_response()]
-    paths = module.generate_images(TWO_SHOT_PROMPTS, str(tmp_path))
-    assert list(paths) == ["shot2_prompt"]
+    with pytest.raises(openai.APITimeoutError):
+        module.generate_images(TWO_SHOT_PROMPTS, str(tmp_path))
+    assert images.call_count == 1
 
 
 def test_generate_images_raises_on_an_unexpected_error(
     images: MagicMock, tmp_path: Path
 ) -> None:
-    """An error outside the provider and data failures is a tool fault and propagates."""
+    """An error outside content and data failures is a tool fault and propagates."""
     images.side_effect = RuntimeError("bug")
     with pytest.raises(RuntimeError, match="bug"):
         module.generate_images(TWO_SHOT_PROMPTS, str(tmp_path))

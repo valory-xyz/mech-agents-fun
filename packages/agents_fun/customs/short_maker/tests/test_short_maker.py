@@ -20,8 +20,10 @@
 """Tests for the short_maker tool's paid calls: models, inputs and cost reporting."""
 
 import base64
+import json
+from contextlib import ExitStack, contextmanager
 from types import SimpleNamespace
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Iterator, List, Tuple
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -153,12 +155,18 @@ def _image_response(data: bytes, output_tokens: int) -> SimpleNamespace:
     )
 
 
-def test_a_failed_image_is_skipped_without_a_charge(tmp_path: Any) -> None:
-    """A shot whose image call fails is left out and costs nothing; the rest are kept."""
+def _openai_error(error_cls: type, status_code: int) -> Exception:
+    """An OpenAI API status error for a response with the given status."""
+    response = MagicMock(status_code=status_code)
+    return error_cls(f"status {status_code}", response=response, body=None)
+
+
+def test_a_content_rejected_image_is_skipped_without_a_charge(tmp_path: Any) -> None:
+    """A shot the image model rejects is left out and costs nothing; the rest are kept."""
     recorder = _CostRecorder()
     client = MagicMock()
     client.images.generate.side_effect = [
-        module.openai.OpenAIError("quota"),
+        _openai_error(module.openai.BadRequestError, 400),
         _image_response(b"moon", 272),
     ]
     with patch.object(module, "client", client):
@@ -175,12 +183,43 @@ def test_no_image_at_all_raises_without_a_charge(tmp_path: Any) -> None:
     """When every shot fails there is nothing to animate, so the run fails."""
     recorder = _CostRecorder()
     client = MagicMock()
-    client.images.generate.side_effect = module.openai.OpenAIError("quota")
+    client.images.generate.side_effect = _openai_error(
+        module.openai.BadRequestError, 400
+    )
     with patch.object(module, "client", client):
         with pytest.raises(ValueError, match="No shot image"):
             generate_images(
                 {"shot1_prompt": "x"}, str(tmp_path), counter_callback=recorder
             )
+    assert recorder.charges() == []
+
+
+@pytest.mark.parametrize(
+    ("error_cls", "status_code"),
+    [
+        (module.openai.AuthenticationError, 401),
+        (module.openai.RateLimitError, 429),
+        (module.openai.InternalServerError, 500),
+    ],
+)
+def test_an_api_error_on_a_shot_stops_the_image_step(
+    tmp_path: Any, error_cls: type, status_code: int
+) -> None:
+    """Errors that are not about the shot itself leave the loop at once, uncharged."""
+    recorder = _CostRecorder()
+    client = MagicMock()
+    client.images.generate.side_effect = [
+        _openai_error(error_cls, status_code),
+        _image_response(b"moon", 272),
+    ]
+    with patch.object(module, "client", client):
+        with pytest.raises(error_cls):
+            generate_images(
+                {"shot1_prompt": "x", "shot2_prompt": "y"},
+                str(tmp_path),
+                counter_callback=recorder,
+            )
+    assert client.images.generate.call_count == 1
     assert recorder.charges() == []
 
 
@@ -280,6 +319,53 @@ def test_a_failed_run_raises_after_reporting_earlier_charges() -> None:
     assert [c["model"] for c in recorder.calls] == [TEXT_MODEL]
 
 
+@contextmanager
+def _run_pipeline(tmp_path: Any, openai_client: Any) -> Iterator[None]:
+    """Stub every external service of ``run`` except the OpenAI image client."""
+    ipfs = MagicMock()
+    ipfs.add.return_value = (None, "bafyvideo", None)
+    ipfs.client.add.return_value = {"Hash": "bafyimage"}
+    audio = {"voiceover_script": "Hi", "soundtrack_prompt": "calm", "voice": "v"}
+    stubs = {
+        "OpenAI": {"return_value": openai_client},
+        "ReplicateClient": {},
+        "get_audio_prompts": {"return_value": audio},
+        "process_voiceover": {"return_value": "https://a/voice.mp3"},
+        "download_file": {"side_effect": lambda _url, path: path},
+        "get_audio_duration": {"return_value": 3.0},
+        "get_shot_prompts": {"return_value": {"shot1": "a rocket"}},
+        "process_first_shots": {"return_value": "https://a/shot.mp4"},
+        "process_soundtrack": {"return_value": "https://a/music.mp3"},
+        "compose_final_video": {"return_value": str(tmp_path / "f.mp4")},
+        "IPFSTool": {"return_value": ipfs},
+        "cleanup_tempdir": {},
+    }
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch.object(module.tempfile, "mkdtemp", return_value=str(tmp_path))
+        )
+        for name, kwargs in stubs.items():
+            stack.enter_context(patch.object(module, name, **kwargs))
+        yield
+
+
+def test_a_rate_limited_shot_rotates_the_openai_key_and_retries(
+    tmp_path: Any,
+) -> None:
+    """A rate limit on the image step reaches the key rotation and the run retries."""
+    client = MagicMock()
+    client.images.generate.side_effect = [
+        _openai_error(module.openai.RateLimitError, 429),
+        _image_response(b"rocket", 272),
+    ]
+    api_keys = _api_keys(openai="ok", replicate="rk")
+    with _run_pipeline(tmp_path, client):
+        result = module.run(prompt="space", tool="short_maker", api_keys=api_keys)
+    api_keys.rotate.assert_called_once_with("openai")
+    assert client.images.generate.call_count == 2
+    assert json.loads(result[0])["video"] == "bafyvideo"
+
+
 def test_a_successful_run_reports_the_script_model_as_the_one_used(
     tmp_path: Any,
 ) -> None:
@@ -288,34 +374,9 @@ def test_a_successful_run_reports_the_script_model_as_the_one_used(
     recorder.actual_model = REPLICATE_MUSIC_GEN
     image = tmp_path / "shot1.png"
     image.write_bytes(b"png")
-    ipfs = MagicMock()
-    ipfs.add.return_value = (None, "bafyvideo", None)
-    ipfs.client.add.return_value = {"Hash": "bafyimage"}
     with (
-        patch.object(module, "OpenAI", return_value=MagicMock()),
-        patch.object(module, "ReplicateClient"),
-        patch.object(module.tempfile, "mkdtemp", return_value=str(tmp_path)),
-        patch.object(
-            module,
-            "get_audio_prompts",
-            return_value={
-                "voiceover_script": "Hi",
-                "soundtrack_prompt": "calm",
-                "voice": "v",
-            },
-        ),
-        patch.object(module, "process_voiceover", return_value="https://a/voice.mp3"),
-        patch.object(module, "download_file", side_effect=lambda _url, path: path),
-        patch.object(module, "get_audio_duration", return_value=3.0),
-        patch.object(module, "get_shot_prompts", return_value={"shot1": "a rocket"}),
+        _run_pipeline(tmp_path, MagicMock()),
         patch.object(module, "generate_images", return_value={"shot1": str(image)}),
-        patch.object(module, "process_first_shots", return_value="https://a/shot.mp4"),
-        patch.object(module, "process_soundtrack", return_value="https://a/music.mp3"),
-        patch.object(
-            module, "compose_final_video", return_value=str(tmp_path / "f.mp4")
-        ),
-        patch.object(module, "IPFSTool", return_value=ipfs),
-        patch.object(module, "cleanup_tempdir"),
     ):
         result = module.run(
             prompt="space",

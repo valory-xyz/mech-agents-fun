@@ -364,7 +364,9 @@ def generate_images(
 ) -> Dict[str, str]:
     """Generate one image per shot prompt and save each as a PNG under ``save_dir``.
 
-    A shot that fails or comes back without an image is left out.
+    A shot the image model rejects, or whose image data is unusable, is left
+    out. Every other API error, rate limits and auth included, propagates so
+    the key rotation wrapper around ``run`` can act on it.
 
     :param shot_prompts: shot name to prompt.
     :param save_dir: directory the PNG files are written to.
@@ -403,7 +405,13 @@ def generate_images(
             image_path = os.path.join(save_dir, f"{shot_number}.png")
             with open(image_path, "wb") as handle:
                 handle.write(base64.b64decode(encoded))
-        except (openai.OpenAIError, OSError, ValueError, LookupError, TypeError) as e:
+        except (
+            openai.BadRequestError,
+            OSError,
+            ValueError,
+            LookupError,
+            TypeError,
+        ) as e:
             print(f"Skipping {shot_number}, no image generated: {e}")
             continue
         generated_images[shot_number] = image_path
