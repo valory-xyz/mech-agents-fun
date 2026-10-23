@@ -20,6 +20,7 @@
 
 import functools
 import json
+import math
 import re
 import time
 from datetime import date
@@ -458,32 +459,35 @@ def extract_question(prompt: str) -> str:
     return question
 
 
-def _validate_sampling(temperature: Any, max_tokens: Any) -> None:
-    """Check the sampling settings a request may carry.
+def _clamp_sampling(temperature: Any, max_tokens: Any) -> Tuple[float, int]:
+    """Clamp the sampling settings a request may carry into the supported range.
 
     :param temperature: the requested sampling temperature.
     :param max_tokens: the requested completion token limit.
-    :raises InvalidRequestError: when either is outside the supported range.
+    :return: the temperature within 0 to 2 and max_tokens within 1024 to 4096.
+    :raises InvalidRequestError: when temperature is not a finite number or
+        max_tokens is not a positive whole number.
     """
     if (
         isinstance(temperature, bool)
         or not isinstance(temperature, (int, float))
-        or not MIN_TEMPERATURE <= temperature <= MAX_TEMPERATURE
+        or not math.isfinite(temperature)
     ):
-        raise InvalidRequestError(
-            f"temperature must be a number from {MIN_TEMPERATURE} to "
-            f"{MAX_TEMPERATURE}, got {temperature!r}."
-        )
-    limit = DEFAULT_OPENAI_SETTINGS["limit_max_tokens"]
+        raise InvalidRequestError(f"temperature must be a number, got {temperature!r}.")
     if (
         isinstance(max_tokens, bool)
-        or not isinstance(max_tokens, int)
-        or not MIN_MAX_TOKENS <= max_tokens <= limit
+        or not isinstance(max_tokens, (int, float))
+        or not math.isfinite(max_tokens)
+        or not float(max_tokens).is_integer()
+        or max_tokens <= 0
     ):
         raise InvalidRequestError(
-            f"max_tokens must be an integer from {MIN_MAX_TOKENS} to {limit}, "
-            f"got {max_tokens!r}."
+            f"max_tokens must be a positive whole number, got {max_tokens!r}."
         )
+    limit = DEFAULT_OPENAI_SETTINGS["limit_max_tokens"]
+    clamped_temperature = min(max(float(temperature), MIN_TEMPERATURE), MAX_TEMPERATURE)
+    clamped_max_tokens = min(max(int(max_tokens), MIN_MAX_TOKENS), limit)
+    return clamped_temperature, clamped_max_tokens
 
 
 @with_key_rotation
@@ -513,7 +517,7 @@ def run(**kwargs: Any) -> MechResponse:
         )
     max_tokens = kwargs.get("max_tokens", DEFAULT_OPENAI_SETTINGS["max_tokens"])
     temperature = kwargs.get("temperature", DEFAULT_OPENAI_SETTINGS["temperature"])
-    _validate_sampling(temperature, max_tokens)
+    temperature, max_tokens = _clamp_sampling(temperature, max_tokens)
     with OpenAIClientManager(openai_api_key) as llm_client:
         prompt = kwargs["prompt"]
 

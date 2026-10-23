@@ -487,8 +487,11 @@ class TestClientFaultClassification:
         assert type(err.value).__name__ != "InvalidRequestError"
 
 
-class TestSamplingValidation:
-    """Sampling settings outside the supported range are a fault in the request."""
+MAX_TOKENS_LIMIT = module.DEFAULT_OPENAI_SETTINGS["limit_max_tokens"]
+
+
+class TestSamplingSettings:
+    """Sampling settings are clamped into range; only malformed values are refused."""
 
     @pytest.fixture
     def parse(self, monkeypatch: pytest.MonkeyPatch) -> MagicMock:
@@ -514,46 +517,51 @@ class TestSamplingValidation:
     @pytest.mark.parametrize(
         "extra",
         [
-            {"temperature": 3},
-            {"temperature": -0.1},
             {"temperature": float("nan")},
+            {"temperature": float("inf")},
             {"temperature": "0.5"},
             {"temperature": True},
             {"temperature": None},
-            {"max_tokens": 1},
-            {"max_tokens": module.MIN_MAX_TOKENS - 1},
-            {"max_tokens": module.DEFAULT_OPENAI_SETTINGS["limit_max_tokens"] + 1},
-            {"max_tokens": 2048.0},
+            {"max_tokens": 0},
+            {"max_tokens": -5},
+            {"max_tokens": 2048.5},
+            {"max_tokens": float("nan")},
+            {"max_tokens": "2048"},
             {"max_tokens": True},
             {"max_tokens": None},
         ],
     )
-    def test_out_of_range_setting_is_an_invalid_request(
+    def test_malformed_setting_is_an_invalid_request(
         self, parse: MagicMock, extra: dict
     ) -> None:
-        """A bad setting raises InvalidRequestError before any paid call."""
+        """A setting that is not a valid number raises before any paid call."""
         with pytest.raises(module.InvalidRequestError):
             self._run(**extra)
         module.requests.request.assert_not_called()
         parse.assert_not_called()
 
     @pytest.mark.parametrize(
-        "extra",
+        ("extra", "key", "sent"),
         [
-            {},
-            {"temperature": module.MIN_TEMPERATURE},
-            {"temperature": module.MAX_TEMPERATURE},
-            {"temperature": 1},
-            {"max_tokens": module.MIN_MAX_TOKENS},
-            {"max_tokens": module.DEFAULT_OPENAI_SETTINGS["limit_max_tokens"]},
+            ({"max_tokens": 1}, "max_tokens", module.MIN_MAX_TOKENS),
+            ({"max_tokens": module.MIN_MAX_TOKENS - 1}, "max_tokens", 1024),
+            ({"max_tokens": MAX_TOKENS_LIMIT + 1}, "max_tokens", MAX_TOKENS_LIMIT),
+            ({"max_tokens": 100000}, "max_tokens", 4096),
+            ({"max_tokens": 2048}, "max_tokens", 2048),
+            ({"max_tokens": 2048.0}, "max_tokens", 2048),
+            ({}, "max_tokens", 4096),
+            ({"temperature": 3}, "temperature", module.MAX_TEMPERATURE),
+            ({"temperature": -0.1}, "temperature", module.MIN_TEMPERATURE),
+            ({"temperature": 0.7}, "temperature", 0.7),
+            ({"temperature": 2}, "temperature", 2.0),
+            ({}, "temperature", 0.0),
         ],
     )
-    def test_in_range_setting_reaches_the_model(
-        self, parse: MagicMock, extra: dict
+    def test_setting_is_clamped_and_the_run_answers(
+        self, parse: MagicMock, extra: dict, key: str, sent: float
     ) -> None:
-        """A setting at or inside the bounds is sent to the model as given."""
+        """A numeric setting out of range is clamped, sent to the model, and answered."""
         result = self._run(**extra)
-        call = parse.call_args.kwargs
-        for key, value in extra.items():
-            assert call[key] == value
+        assert parse.call_args.kwargs[key] == sent
+        assert type(parse.call_args.kwargs["max_tokens"]) is int
         assert json.loads(result[0])["p_yes"] == FAKE_PREDICTION.p_yes
