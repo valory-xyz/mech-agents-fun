@@ -111,6 +111,15 @@ def test_run_raises_on_provider_error(
     assert api_keys.rotated == []
 
 
+def test_script_request_carries_the_buyer_prompt(genai_client: MagicMock) -> None:
+    """The buyer's prompt is the user input of the script request."""
+    genai_client.models.generate_content.side_effect = ConnectionError("stop")
+    with pytest.raises(ConnectionError):
+        _run(FakeKeyChain({"gemini_api_key": GEMINI_KEY}))
+    contents = genai_client.models.generate_content.call_args.kwargs["contents"]
+    assert contents.startswith(f'Based on the USER INPUT: "{PROMPT}",')
+
+
 def test_provider_bad_request_on_the_prompt_is_an_invalid_request(
     genai_client: MagicMock,
 ) -> None:
