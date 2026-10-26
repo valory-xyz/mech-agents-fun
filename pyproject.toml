@@ -11,12 +11,12 @@ readme = "README.md"
 license = "Apache-2.0"
 dependencies = [
     # OA / open-aea / plugins — pinned exactly (framework contract).
-    "open-autonomy[all]==0.21.27",
-    "open-aea-ledger-ethereum==2.2.9",
-    "open-aea-ledger-cosmos==2.2.9",
-    "open-aea-test-autonomy==0.21.27",
-    "open-aea-cli-ipfs==2.2.9",
-    "open-aea-helpers==0.21.27",
+    "open-autonomy[all]==0.21.30",
+    "open-aea-ledger-ethereum==2.2.10",
+    "open-aea-ledger-cosmos==2.2.10",
+    "open-aea-test-autonomy==0.21.30",
+    "open-aea-cli-ipfs==2.2.10",
+    "open-aea-helpers==0.21.30",
     # Agent-repo (app) deps — exact pins per David's #436 rule.
     # Ranges are reserved for framework/lib repos; agent repos pin
     # everything non-OA throughout.
@@ -27,7 +27,7 @@ dependencies = [
     "web3<8,>=7.0.0",
     "pytest-asyncio==1.3.0",
     "aiohttp<4.0.0,>=3.8.5",
-    "certifi==2026.2.25",
+    "certifi==2026.10.23",
     "multidict==6.7.1",
     "ecdsa>=0.15",
     "py-ecc<10,>=8",
@@ -91,7 +91,7 @@ override-dependencies = [
 # author so canonical env vars resolve sensibly.
 packages_paths = "packages/valory"
 # Third-party skills/contracts on disk are synced from mech upstream.
-upstream_pins = ["valory-xyz/mech@v0.35.9"]
+upstream_pins = ["valory-xyz/mech@v0.36.0"]
 tomte_dep_pin = "==0.7.3"
 # Customs are file-form (no per-pkg tests/ dir). The only first-party
 # tests live under tests/; without pinning, auto-discovery picks up
