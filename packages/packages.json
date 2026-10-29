@@ -6,8 +6,8 @@
         "custom/agents_fun/recraft_image_gen/0.1.0": "bafybeihvn5mcmegz6ww4rwwinjivse353xyomcyzhtais2pxdqhzm3axwq",
         "custom/agents_fun/google_video_gen/0.1.0": "bafybeibdochcv6mrefc44irtccrsmf63r4aetnbjojq2wvvtos737nnncm",
         "custom/valory/superforcaster/0.1.0": "bafybeidwdixsstuexhtgrzhl5tpcx2ezkvb2oace62z32ty52z5wdradna",
-        "agent/valory/mech_agents_fun/0.1.0": "bafybeifpensufdokj4bsaxaak3jdk6gdgqdto4se5ehjo736aov3uwub34",
-        "service/valory/mech_agents_fun/0.1.0": "bafybeidvv5c6h4jwbfh3he4qdipiwftd25qvklny7cj3amfne35rupxehe"
+        "agent/valory/mech_agents_fun/0.1.0": "bafybeigplt3syiwiijr2xy45wda6wdaoy3awco4er5x3jxtpw4gvwsks7m",
+        "service/valory/mech_agents_fun/0.1.0": "bafybeihlld2eqyb3szxjtenzagainm2vm4spd66grbhv74nr4tibuxkbsu"
     },
     "third_party": {
         "protocol/valory/acn/1.1.0": "bafybeiea66z4k6cgcazxd6qzvnkllulyjzbnxufkoenge7qzh4qfogrvoa",
@@ -28,9 +28,9 @@
         "contract/valory/gnosis_safe/0.1.0": "bafybeifv2ajl76hvtpdtcv2alkislkqr5t7jcyspd5cimmnkfhnyemeux4",
         "contract/valory/erc20/0.1.0": "bafybeigafpclygxbid3tbtavpjtz4rxqi4j7uwqlhxbumdm6itzmat6m3m",
         "contract/valory/mech_marketplace/0.1.0": "bafybeidk67435jzze4pyrqjixspubbsb2rvpe7jobnhttxavi3s3upu7ne",
-        "contract/valory/balance_tracker/0.1.0": "bafybeigokfiychviqx4ow3u5xpk5bzmrytbogii2tunphmewd2rmgoypny",
+        "contract/valory/balance_tracker/0.1.0": "bafybeibtds6mmu53rm4az6dps5hansk2juz562jfytusy7bpvbooc33ria",
         "contract/valory/hash_checkpoint/0.1.0": "bafybeickz4ack57gvznbaq74stt2tnyeng3l5bf7rlr5jdfnitku7mvrde",
-        "contract/valory/olas_mech/0.1.0": "bafybeigqh44ytrpr6v3vuhp7vy6f6fbeae3wvsrjzpgi5utlghnffjcata",
+        "contract/valory/olas_mech/0.1.0": "bafybeiaxgpc3flvaiq3hjr3e722jizcfagd2iisnodyp3c2v6vb3vdg6cm",
         "contract/valory/agent_mech/0.1.0": "bafybeic3oixev5nonyeq7rfxn4kcsqwzqri2kn64as7ushhvhj5autbzhi",
         "connection/valory/p2p_libp2p_client/0.1.0": "bafybeielj3jso3wvrarp5n5rq7llpw4vgxybqiyensgjalb5ubfiawwhhu",
         "connection/valory/http_client/0.23.0": "bafybeihel6sg2yayxu7lqygaswdgciaxpqrgsbl5rwx74c6znu5qz2edd4",
@@ -48,9 +48,9 @@
         "skill/valory/registration_abci/0.1.0": "bafybeiczrxjc4dvw35q6ve2sdozqsmamqrlrhaxj5fcvajd3cmgfzx34hm",
         "skill/valory/reset_pause_abci/0.1.0": "bafybeig2zorapaqx6ubr3e63ujztidafzhstitgqdjocvec77ytr6jggzy",
         "skill/valory/termination_abci/0.1.0": "bafybeifs63hjdekvstdanmiwyo3qzyn5qegkvmjemm4poago7x6lcly7ni",
-        "skill/valory/delivery_rate_abci/0.1.0": "bafybeifounuqfkcqckhhu6nq5esiocvyektagjuwyleemxl7hut56gcfg4",
-        "skill/valory/mech_abci/0.1.0": "bafybeihuubvixa2q4ayn5taz5akxil4sbruqk6sb33xewx27bly6mc3vny",
-        "skill/valory/task_execution/0.1.0": "bafybeib2xna53rzkip3umg7j3ryqfun74coq4sfkktnvcwt7fgg5lpg5q4",
-        "skill/valory/task_submission_abci/0.1.0": "bafybeig7kquh6xllbyerw4r52pvlwq3mt4s3i7xhlk3dgzmeq6wujwzq4u"
+        "skill/valory/delivery_rate_abci/0.1.0": "bafybeierhqnubpz4kxml3lqsgif3yxjqpqjke3iwlsamdukifs66clxoqq",
+        "skill/valory/mech_abci/0.1.0": "bafybeiaz2m3wr335g6pcyrmmhrpbvyhpgpuchhrrbq743dld6n2lfyz2qm",
+        "skill/valory/task_execution/0.1.0": "bafybeiaz2bnnpxiggvyiuhzbi3ls4nhc4sh6njfq4v5iowgb4hwb2r66wq",
+        "skill/valory/task_submission_abci/0.1.0": "bafybeiazrhkmddlf5yeldrwsmshhqoa4vb3acs65pj2wtogdqrp2bkkyqi"
     }
 }

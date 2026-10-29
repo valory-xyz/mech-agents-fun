@@ -91,7 +91,7 @@ override-dependencies = [
 # author so canonical env vars resolve sensibly.
 packages_paths = "packages/valory"
 # Third-party skills/contracts on disk are synced from mech upstream.
-upstream_pins = ["valory-xyz/mech@v0.36.0"]
+upstream_pins = ["valory-xyz/mech@v0.36.1"]
 tomte_dep_pin = "==0.7.3"
 # Customs are file-form (no per-pkg tests/ dir). The only first-party
 # tests live under tests/; without pinning, auto-discovery picks up
