@@ -257,6 +257,7 @@ models:
       task_deadline: ${float:240.0}
       tools_to_package_hash: ${dict:{}}
       api_keys: ${dict:{}}
+      openai_base_url: ${str:https://api.openai.com/v1}
       polling_interval: ${float:10}
       agent_index: ${int:0}
       num_agents: ${int:4}
