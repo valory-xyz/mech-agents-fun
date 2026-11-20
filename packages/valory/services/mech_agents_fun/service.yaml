@@ -7,10 +7,12 @@ license: Apache-2.0
 fingerprint:
   README.md: bafybeif7ia4jdlazy6745ke2k2x5yoqlwsgwr6sbztbgqtwvs3ndm2p7ba
 fingerprint_ignore_patterns: []
-agent: valory/mech_agents_fun:0.1.0:bafybeiajqu5eux3qdmr5ur4yuwajmljlrypnurbscxt2nxq5yci5fwwhxa
+agent: valory/mech_agents_fun:0.1.0:bafybeidcmhsva7uexkc5enjdkmeabdl2aktst3kkpjblpagjkluuzbebra
 number_of_agents: 1
 deployment:
   agent:
+    volumes:
+      ./data: /data
     ports:
       0:
         8000: 8000
@@ -224,6 +226,7 @@ type: skill
         task_deadline: ${TASK_DEADLINE:float:240.0}
         tools_to_package_hash: ${TOOLS_TO_PACKAGE_HASH:dict:{}}
         api_keys: ${API_KEYS:dict:{}}
+        openai_base_url: ${OPENAI_BASE_URL:str:https://api.openai.com/v1}
         polling_interval: ${POLLING_INTERVAL:float:30.0}
         agent_index: ${AGENT_INDEX_0:int:0}
         num_agents: ${NUM_AGENTS:int:4}
@@ -249,6 +252,7 @@ type: skill
         task_deadline: ${TASK_DEADLINE:float:240.0}
         tools_to_package_hash: ${TOOLS_TO_PACKAGE_HASH:dict:{}}
         api_keys: ${API_KEYS:dict:{}}
+        openai_base_url: ${OPENAI_BASE_URL:str:https://api.openai.com/v1}
         polling_interval: ${POLLING_INTERVAL:float:30.0}
         mech_marketplace_address: ${MECH_MARKETPLACE_ADDRESS:str:0x0000000000000000000000000000000000000000}
         agent_index: ${AGENT_INDEX_1:int:1}
@@ -274,6 +278,7 @@ type: skill
         task_deadline: ${TASK_DEADLINE:float:240.0}
         tools_to_package_hash: ${TOOLS_TO_PACKAGE_HASH:dict:{}}
         api_keys: ${API_KEYS:dict:{}}
+        openai_base_url: ${OPENAI_BASE_URL:str:https://api.openai.com/v1}
         polling_interval: ${POLLING_INTERVAL:float:30.0}
         mech_marketplace_address: ${MECH_MARKETPLACE_ADDRESS:str:0x0000000000000000000000000000000000000000}
         agent_index: ${AGENT_INDEX_2:int:2}
@@ -299,6 +304,7 @@ type: skill
         task_deadline: ${TASK_DEADLINE:float:240.0}
         tools_to_package_hash: ${TOOLS_TO_PACKAGE_HASH:dict:{}}
         api_keys: ${API_KEYS:dict:{}}
+        openai_base_url: ${OPENAI_BASE_URL:str:https://api.openai.com/v1}
         mech_marketplace_address: ${MECH_MARKETPLACE_ADDRESS:str:0x0000000000000000000000000000000000000000}
         polling_interval: ${POLLING_INTERVAL:float:30.0}
         agent_index: ${AGENT_INDEX_3:int:3}
