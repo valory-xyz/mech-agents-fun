@@ -34,8 +34,10 @@ from packages.agents_fun.customs.google_image_gen.google_image_gen import (
     DEFAULT_MODEL,
     IMAGE_COST_USD,
     IMAGE_SIZE,
+    TOKEN_COST_USD_PER_MILLION,
     image_cost_usd,
     run,
+    token_cost_usd,
 )
 
 
@@ -75,15 +77,38 @@ def _png_bytes() -> bytes:
     return buffer.getvalue()
 
 
-def _client_returning(image_bytes: Any) -> MagicMock:
+def _client_returning(image_bytes: Any, usage: Any = None) -> MagicMock:
     client = MagicMock()
     output = (
         None
         if image_bytes is None
         else SimpleNamespace(data=base64.b64encode(image_bytes).decode())
     )
-    client.interactions.create.return_value = SimpleNamespace(output_image=output)
+    client.interactions.create.return_value = SimpleNamespace(
+        output_image=output, usage=usage
+    )
     return client
+
+
+INPUT_TOKENS = 2_000
+IMAGE_TOKENS = 1_120
+TEXT_TOKENS = 300
+THOUGHT_TOKENS = 500
+
+
+def _usage(**overrides: Any) -> SimpleNamespace:
+    """Usage of one interaction: a prompt, one image, some text and thinking."""
+    fields: Dict[str, Any] = {
+        "total_input_tokens": INPUT_TOKENS,
+        "total_output_tokens": IMAGE_TOKENS + TEXT_TOKENS,
+        "total_thought_tokens": THOUGHT_TOKENS,
+        "output_tokens_by_modality": [
+            SimpleNamespace(modality="image", tokens=IMAGE_TOKENS),
+            SimpleNamespace(modality="text", tokens=TEXT_TOKENS),
+        ],
+    }
+    fields.update(overrides)
+    return SimpleNamespace(**fields)
 
 
 def _run(client: MagicMock, recorder: _CostRecorder) -> Tuple[Any, ...]:
@@ -258,3 +283,67 @@ def test_run_refuses_an_unknown_tool_before_calling_google() -> None:
             )
     client_cls.assert_not_called()
     assert recorder.charges() == []
+
+
+def test_run_adds_the_prompt_and_text_tokens_to_the_image_price() -> None:
+    """The reported charge is the image plus the prompt, text and thinking tokens."""
+    recorder = _CostRecorder()
+
+    _run(_client_returning(_png_bytes(), _usage()), recorder)
+
+    input_rate, text_rate = TOKEN_COST_USD_PER_MILLION[DEFAULT_MODEL]
+    tokens = (
+        INPUT_TOKENS * input_rate + (TEXT_TOKENS + THOUGHT_TOKENS) * text_rate
+    ) / 1_000_000
+    ((model, charge),) = recorder.charges()
+    assert model == DEFAULT_MODEL
+    assert charge == pytest.approx(IMAGE_COST_USD[DEFAULT_MODEL][IMAGE_SIZE] + tokens)
+    assert tokens > 0
+
+
+@pytest.mark.parametrize(
+    "usage, input_tokens, text_tokens",
+    [
+        (None, 0, 0),
+        (SimpleNamespace(), 0, 0),
+        (_usage(output_tokens_by_modality=None), INPUT_TOKENS, THOUGHT_TOKENS),
+        (_usage(total_thought_tokens=None), INPUT_TOKENS, TEXT_TOKENS),
+        (_usage(total_input_tokens=None), 0, TEXT_TOKENS + THOUGHT_TOKENS),
+        (_usage(total_input_tokens=-5), 0, TEXT_TOKENS + THOUGHT_TOKENS),
+        (_usage(total_input_tokens="2000"), 0, TEXT_TOKENS + THOUGHT_TOKENS),
+        (_usage(total_input_tokens=True), 0, TEXT_TOKENS + THOUGHT_TOKENS),
+        (
+            _usage(output_tokens_by_modality=[SimpleNamespace(modality="image")]),
+            INPUT_TOKENS,
+            THOUGHT_TOKENS,
+        ),
+    ],
+    ids=[
+        "no_usage",
+        "empty_usage",
+        "no_modality_breakdown",
+        "no_thought_tokens",
+        "no_input_tokens",
+        "negative_input",
+        "text_input",
+        "bool_input",
+        "image_entry_without_tokens",
+    ],
+)
+def test_token_cost_counts_only_what_the_usage_states(
+    usage: Any, input_tokens: int, text_tokens: int
+) -> None:
+    """A missing or malformed field counts as zero; image tokens are never charged here."""
+    input_rate, text_rate = TOKEN_COST_USD_PER_MILLION[DEFAULT_MODEL]
+    expected = (input_tokens * input_rate + text_tokens * text_rate) / 1_000_000
+    assert token_cost_usd(DEFAULT_MODEL, usage) == pytest.approx(expected)
+
+
+def test_token_cost_is_zero_for_a_model_without_rates() -> None:
+    """A model with no listed token rates adds nothing to the image price."""
+    assert token_cost_usd(UNLISTED_MODEL, _usage()) == 0.0
+
+
+def test_every_model_with_an_image_price_has_token_rates() -> None:
+    """The two price tables cover the same models."""
+    assert set(TOKEN_COST_USD_PER_MILLION) == set(IMAGE_COST_USD)
