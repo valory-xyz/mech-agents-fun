@@ -63,6 +63,9 @@ def _api_keys(**services: str) -> MagicMock:
 
 
 PROMPT = "a lighthouse at dusk"
+UNLISTED_MODEL = "some-future-image-model"
+OTHER_SIZE = "8K"
+OTHER_SIZE_PRICE = 0.5
 IMAGE_HASH = "bafyimagehash"
 
 
@@ -169,8 +172,50 @@ def test_another_listed_model_is_charged_at_its_own_price() -> None:
     assert image_cost_usd("gemini-3-pro-image", IMAGE_SIZE) == 0.134
 
 
-def test_an_unlisted_model_reports_no_charge() -> None:
-    """A model without a listed price reports nothing, so the mech falls back to floor or cap."""
+@pytest.mark.parametrize(
+    "model", [UNLISTED_MODEL, DEFAULT_MODEL.upper(), f"{DEFAULT_MODEL} ", ["gemini"]]
+)
+def test_a_model_without_a_listed_price_is_refused_before_calling_google(
+    model: Any,
+) -> None:
+    """A model the tool has no price for is a request fault; no client is built."""
+    recorder = _CostRecorder()
+    with patch.object(module.genai, "Client") as client_cls:
+        with pytest.raises(module.InvalidRequestError, match="is not supported"):
+            run(
+                prompt=PROMPT,
+                tool="google_image_gen",
+                model=model,
+                api_keys=_api_keys(gemini_api_key="gk"),
+                counter_callback=recorder,
+            )
+    client_cls.assert_not_called()
+    assert recorder.charges() == []
+    assert image_cost_usd(model, IMAGE_SIZE) == 0.0
+
+
+def test_a_listed_model_without_a_price_at_the_served_size_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model is served only when it has a price at the size the tool generates."""
+    monkeypatch.setitem(IMAGE_COST_USD, UNLISTED_MODEL, {OTHER_SIZE: OTHER_SIZE_PRICE})
+    with patch.object(module.genai, "Client") as client_cls:
+        with pytest.raises(module.InvalidRequestError, match="is not supported"):
+            run(
+                prompt=PROMPT,
+                tool="google_image_gen",
+                model=UNLISTED_MODEL,
+                api_keys=_api_keys(gemini_api_key="gk"),
+                counter_callback=_CostRecorder(),
+            )
+    client_cls.assert_not_called()
+
+
+@pytest.mark.parametrize("model", sorted(IMAGE_COST_USD))
+def test_every_listed_model_is_served_and_charged_its_listed_price(
+    model: str,
+) -> None:
+    """Each model in the price table generates and reports its own price."""
     recorder = _CostRecorder()
     client = _client_returning(_png_bytes())
     ipfs = MagicMock()
@@ -179,17 +224,15 @@ def test_an_unlisted_model_reports_no_charge() -> None:
         patch.object(module.genai, "Client", return_value=client),
         patch.object(module, "IPFSTool", return_value=ipfs),
     ):
-        response = run(
-            prompt="x",
+        run(
+            prompt=PROMPT,
             tool="google_image_gen",
-            model="some-future-image-model",
+            model=model,
             api_keys=_api_keys(gemini_api_key="gk"),
             counter_callback=recorder,
         )
-    assert json.loads(response[0])["image_hash"] == IMAGE_HASH
-    assert response[3] is recorder
-    assert recorder.charges() == []
-    assert image_cost_usd("some-future-image-model", IMAGE_SIZE) == 0.0
+    assert client.interactions.create.call_args.kwargs["model"] == model
+    assert recorder.charges() == [(model, IMAGE_COST_USD[model][IMAGE_SIZE])]
 
 
 def test_run_raises_and_charges_nothing_when_no_image_comes_back() -> None:

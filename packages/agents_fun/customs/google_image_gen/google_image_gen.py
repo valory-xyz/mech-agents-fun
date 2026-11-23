@@ -41,8 +41,8 @@ HTTP_TOO_MANY_REQUESTS = 429
 GEMINI_SERVICE = "gemini_api_key"
 IMAGE_SIZE = "1K"
 # USD per generated image by model and size, ai.google.dev/gemini-api/docs/pricing.
-# A request may name any image model the mech passes through; one that is not
-# listed here reports no charge, and the mech falls back to the floor or cap.
+# A request is served only for a model listed here at IMAGE_SIZE, so every
+# generated image has a price to report.
 IMAGE_COST_USD = {
     "gemini-nano-banana-2.1": {"1K": 0.0336, "2K": 0.0504, "4K": 0.113},
     "gemini-3.1-flash-lite-image": {"1K": 0.0336},
@@ -184,16 +184,22 @@ def _is_request_rejection(error: Exception) -> bool:
     return "API_KEY_INVALID" not in detail and "API key" not in detail
 
 
-def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> None:
-    """Validate tool and API key.
+def _validate_inputs(
+    tool: Optional[str], model_name: Optional[str], api_key: Optional[str]
+) -> None:
+    """Validate tool, model and API key.
 
     :param tool: the requested tool name.
+    :param model_name: the image model the request named.
     :param api_key: the Gemini API key.
-    :raises InvalidRequestError: if the tool is not supported.
+    :raises InvalidRequestError: if the tool is not supported, or the model
+        has no listed price at the served image size.
     :raises ValueError: if the key is missing.
     """
     if tool not in ALLOWED_TOOLS:
         raise InvalidRequestError(f"Tool {tool} is not supported by this agent.")
+    if image_cost_usd(model_name, IMAGE_SIZE) <= 0:
+        raise InvalidRequestError(f"Model {model_name} is not supported.")
     if not api_key:
         raise ValueError("Google API key (GEMINI_API_KEY) not provided.")
 
@@ -264,7 +270,7 @@ def run(**kwargs: Any) -> Tuple[str, Optional[str], Optional[Dict[str, Any]], An
     counter_callback = kwargs.get("counter_callback", None)
     model_name = kwargs.get("model") or DEFAULT_MODEL
 
-    _validate_inputs(tool, api_key)
+    _validate_inputs(tool, model_name, api_key)
 
     client = genai.Client(api_key=api_key)
     image_data = _generate_image_from_google_api(
