@@ -49,13 +49,14 @@ IMAGE_COST_USD = {
     "gemini-3.1-flash-image": {"0.5K": 0.045, "1K": 0.067, "2K": 0.101, "4K": 0.151},
     "gemini-3-pro-image": {"1K": 0.134, "2K": 0.134, "4K": 0.24},
 }
-# USD per million tokens by model, same page: (input, text and thinking output).
-# The per-image price above covers the image output tokens only.
+# USD per million tokens by model, same page: (input, text and thinking output,
+# image output). The per-image price above is one image's output tokens at the
+# image rate.
 TOKEN_COST_USD_PER_MILLION = {
-    "gemini-nano-banana-2.1": (1.50, 7.50),
-    "gemini-3.1-flash-lite-image": (0.25, 1.50),
-    "gemini-3.1-flash-image": (0.50, 3.00),
-    "gemini-3-pro-image": (2.00, 12.00),
+    "gemini-nano-banana-2.1": (1.50, 7.50, 30.00),
+    "gemini-3.1-flash-lite-image": (0.25, 1.50, 30.00),
+    "gemini-3.1-flash-image": (0.50, 3.00, 60.00),
+    "gemini-3-pro-image": (2.00, 12.00, 120.00),
 }
 IMAGE_MODALITY = "image"
 
@@ -86,8 +87,8 @@ def token_cost_usd(model_name: Optional[str], usage: Any) -> float:
 
     Input tokens are charged at the model's input rate. Output tokens of any
     modality but the image, and thinking tokens, are charged at its text rate.
-    The image itself is charged by ``image_cost_usd``, so output without a
-    per-modality breakdown is not charged a second time here.
+    The image output is charged by ``image_output_cost_usd``, so output
+    without a per-modality breakdown is not charged a second time here.
 
     :param model_name: the image model the request named.
     :param usage: the interaction's ``usage``, or None when it carries none.
@@ -96,15 +97,47 @@ def token_cost_usd(model_name: Optional[str], usage: Any) -> float:
     rates = TOKEN_COST_USD_PER_MILLION.get(str(model_name))
     if usage is None or rates is None:
         return 0.0
-    input_rate, text_rate = rates
-    by_modality = getattr(usage, "output_tokens_by_modality", None) or []
-    text_tokens = sum(
-        _token_count(getattr(entry, "tokens", None))
-        for entry in by_modality
-        if getattr(entry, "modality", None) != IMAGE_MODALITY
-    ) + _token_count(getattr(usage, "total_thought_tokens", None))
+    input_rate, text_rate, _ = rates
+    text_tokens = _output_tokens(usage, image=False) + _token_count(
+        getattr(usage, "total_thought_tokens", None)
+    )
     input_tokens = _token_count(getattr(usage, "total_input_tokens", None))
     return (input_tokens * input_rate + text_tokens * text_rate) / 1_000_000
+
+
+def _output_tokens(usage: Any, image: bool) -> int:
+    """Output tokens of the image modality, or of every other modality.
+
+    :param usage: the interaction's ``usage``.
+    :param image: True for the image modality, False for all the others.
+    :return: the token count, 0 without a per-modality breakdown.
+    """
+    by_modality = getattr(usage, "output_tokens_by_modality", None) or []
+    return sum(
+        _token_count(getattr(entry, "tokens", None))
+        for entry in by_modality
+        if (getattr(entry, "modality", None) == IMAGE_MODALITY) is image
+    )
+
+
+def image_output_cost_usd(model_name: Optional[str], size: str, usage: Any) -> float:
+    """The charge for the image output of one interaction.
+
+    One image is charged its listed price. An interaction whose image output
+    tokens come to more than that, as with several images, is charged those
+    tokens at the model's image rate.
+
+    :param model_name: the image model the request named.
+    :param size: the requested image size.
+    :param usage: the interaction's ``usage``, or None when it carries none.
+    :return: the USD charge, never below the price of one image.
+    """
+    one_image = image_cost_usd(model_name, size)
+    rates = TOKEN_COST_USD_PER_MILLION.get(str(model_name))
+    if usage is None or rates is None:
+        return one_image
+    by_tokens = _output_tokens(usage, image=True) * rates[2] / 1_000_000
+    return max(one_image, by_tokens)
 
 
 def record_api_cost(
@@ -280,13 +313,14 @@ def _generate_image_from_google_api(
     encoded = getattr(output_image, "data", None) if output_image else None
     if not encoded:
         raise ValueError("No image data found in the response (output_image is empty).")
-    # The image is billed per image; the prompt and any text or thinking
-    # output are billed per token on top of it.
+    # The image output is billed per image; the prompt and any text or
+    # thinking output are billed per token on top of it.
+    usage = getattr(interaction, "usage", None)
     record_api_cost(
         counter_callback,
         str(model_name),
-        image_cost_usd(model_name, IMAGE_SIZE)
-        + token_cost_usd(model_name, getattr(interaction, "usage", None)),
+        image_output_cost_usd(model_name, IMAGE_SIZE, usage)
+        + token_cost_usd(model_name, usage),
     )
     return base64.b64decode(encoded)
 

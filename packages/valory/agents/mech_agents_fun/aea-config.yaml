@@ -52,7 +52,7 @@ skills:
 - valory/transaction_settlement_abci:0.1.0:bafybeidkkgo6tmpybsmzun3tnxrfzdkjvtvaxgqhx52yw3657tn25ybkri
 - valory/websocket_client:0.1.0:bafybeih6frksod5i3nuxhqqolkmswn64227a66hh6c7bqss6owiv6tmaaa
 customs:
-- agents_fun/google_image_gen:0.1.0:bafybeib2cis7tg5l2l4lnybduontcrm2ef5eytr7g65lu4r2jsyyrduxui
+- agents_fun/google_image_gen:0.1.0:bafybeigzz5fadiowmzs44hvunvsixc6cgg7334rc267ycub5qlk5i3aaji
 - agents_fun/short_maker:0.1.0:bafybeibi3c544qrj6zgjg7q4rfqy6ltud3al2ya5g62ohphxlaw222a6y4
 - agents_fun/stability_ai_request:0.1.0:bafybeiczw3vipbpoxewvywfdtpchlfjcovq6ve5vtijjgw7sjqxnpz4ffm
 - valory/superforcaster:0.1.0:bafybeiejv7y6kt2htfrxkqz5xqy5iqmfzv6witzw645mftg6twmkugwyqq
