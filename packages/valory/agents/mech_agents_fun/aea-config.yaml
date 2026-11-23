@@ -55,7 +55,7 @@ customs:
 - agents_fun/google_image_gen:0.1.0:bafybeih2dkbspkumojrwrhljo4vkfqdw557ac55zmk77u3xrlvqsjgqdkm
 - agents_fun/short_maker:0.1.0:bafybeibi3c544qrj6zgjg7q4rfqy6ltud3al2ya5g62ohphxlaw222a6y4
 - agents_fun/stability_ai_request:0.1.0:bafybeiczw3vipbpoxewvywfdtpchlfjcovq6ve5vtijjgw7sjqxnpz4ffm
-- valory/superforcaster:0.1.0:bafybeifdhxwmec7woonk4bd5mhwvwt42fsl3i4ypdhvumis65fy7csnrne
+- valory/superforcaster:0.1.0:bafybeiejv7y6kt2htfrxkqz5xqy5iqmfzv6witzw645mftg6twmkugwyqq
 default_ledger: ethereum
 required_ledgers:
 - ethereum

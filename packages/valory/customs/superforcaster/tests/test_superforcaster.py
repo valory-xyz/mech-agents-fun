@@ -662,24 +662,6 @@ class TestEveryPaidCallIsReported:
             == [(PROMPT_TOKENS, COMPLETION_TOKENS)] * module.COMPLETION_RETRIES
         )
 
-    def test_completion_cut_off_at_the_length_limit_is_reported_and_raises(
-        self, parse: MagicMock
-    ) -> None:
-        """A truncated completion carries its usage, which is reported once."""
-        completion = MagicMock(
-            usage=MagicMock(
-                prompt_tokens=PROMPT_TOKENS, completion_tokens=COMPLETION_TOKENS
-            )
-        )
-        parse.side_effect = openai.LengthFinishReasonError(completion=completion)
-        recorder = _CostRecorder()
-
-        with pytest.raises(openai.LengthFinishReasonError):
-            self._run(recorder)
-
-        parse.assert_called_once()
-        assert recorder.completions() == [(PROMPT_TOKENS, COMPLETION_TOKENS)]
-
     def test_completion_failing_the_schema_reports_the_prompt_that_was_sent(
         self, parse: MagicMock
     ) -> None:

@@ -388,7 +388,6 @@ def _parse_completion(
     :param counter_callback: optional callback tracking token usage.
     :return: tuple of (parsed model instance, counter_callback).
     :raises RateLimitError: if the last attempt was rate limited, so the caller can rotate keys.
-    :raises LengthFinishReasonError: if the completion was cut off at max_tokens.
     :raises RuntimeError: if all retries exhausted without a successful parse.
     """
     last_error: Optional[Exception] = None
@@ -416,9 +415,6 @@ def _parse_completion(
                 )
 
             return parsed, counter_callback
-        except openai.LengthFinishReasonError as e:
-            _record_completion_usage(counter_callback, model, e.completion.usage)
-            raise
         except (
             openai.APIConnectionError,
             openai.RateLimitError,
