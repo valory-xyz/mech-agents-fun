@@ -125,7 +125,9 @@ def _mock_parse_response() -> MagicMock:
     """Build a fake response object matching the beta.chat.completions.parse shape."""
     return MagicMock(
         choices=[MagicMock(message=MagicMock(parsed=FAKE_PREDICTION, refusal=None))],
-        usage=MagicMock(prompt_tokens=10, completion_tokens=5),
+        usage=MagicMock(
+            prompt_tokens=PROMPT_TOKENS, completion_tokens=COMPLETION_TOKENS
+        ),
     )
 
 
@@ -319,6 +321,8 @@ class TestSuperforcasterSourceContent:
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_UNAUTHORIZED = 401
 MODEL = "gpt-4.1-2025-04-14"
+# One Serper query and one completion.
+PAID_CALLS_PER_RUN = 2
 
 
 class _FakeKeyChain(dict):
@@ -453,7 +457,7 @@ class TestFailedRunRaises:
         assert isinstance(result, tuple)
         assert json.loads(result[0])["p_no"] == FAKE_PREDICTION.p_no
         assert all("max_cost" not in c.kwargs for c in counter_callback.call_args_list)
-        counter_callback.assert_called_once()
+        assert counter_callback.call_count == PAID_CALLS_PER_RUN
 
 
 class TestClientFaultClassification:
@@ -485,6 +489,224 @@ class TestClientFaultClassification:
                 api_keys=_FakeKeyChain(retries=0),
             )
         assert type(err.value).__name__ != "InvalidRequestError"
+
+    @pytest.mark.parametrize(
+        "model", ["gpt-4o-2024-08-06", MODEL.upper(), f"{MODEL} ", "", 0, [MODEL]]
+    )
+    def test_model_outside_the_allowed_list_is_refused_before_any_paid_call(
+        self, monkeypatch: pytest.MonkeyPatch, model: object
+    ) -> None:
+        """Only a model the tool lists is served; nothing is called for another."""
+        openai_cls = MagicMock()
+        monkeypatch.setattr(module, "OpenAI", openai_cls)
+        monkeypatch.setattr(module.requests, "request", MagicMock())
+        with pytest.raises(module.InvalidRequestError, match="not supported"):
+            run(
+                tool="superforcaster",
+                model=model,
+                prompt=PREDICTION_PROMPT,
+                api_keys=_FakeKeyChain(retries=0),
+            )
+        module.requests.request.assert_not_called()
+        openai_cls.assert_not_called()
+
+
+PROMPT_TOKENS = 10
+COMPLETION_TOKENS = 5
+HTTP_FORBIDDEN = 403
+REFUSAL_TEXT = "cannot help with that"
+
+
+class _CostRecorder:
+    """Stands in for the mech's cost callback and keeps every report."""
+
+    def __init__(self) -> None:
+        """Start with no reports."""
+        self.calls: list = []
+
+    def __call__(self, **kwargs: object) -> None:
+        """Keep one report."""
+        self.calls.append(kwargs)
+
+    def charges(self) -> list:
+        """The ``call_cost`` of every token-free report, in order."""
+        return [c["call_cost"] for c in self.calls if "call_cost" in c]
+
+    def completions(self) -> list:
+        """The (input_tokens, output_tokens) of every completion report, in order."""
+        return [
+            (c["input_tokens"], c["output_tokens"])
+            for c in self.calls
+            if "call_cost" not in c and "input_tokens" in c
+        ]
+
+    def prompts(self) -> list:
+        """The ``input_prompt`` of every report that carries the prompt text."""
+        return [c["input_prompt"] for c in self.calls if "input_prompt" in c]
+
+
+def _refusal_response() -> MagicMock:
+    """Build a completion the model refused: no parsed object, usage present."""
+    return MagicMock(
+        choices=[MagicMock(message=MagicMock(parsed=None, refusal=REFUSAL_TEXT))],
+        usage=MagicMock(
+            prompt_tokens=PROMPT_TOKENS, completion_tokens=COMPLETION_TOKENS
+        ),
+    )
+
+
+def _schema_validation_error() -> Exception:
+    """Build the error the SDK raises for a completion that fails the schema."""
+    with pytest.raises(module.ValidationError) as err:
+        PredictionResult.model_validate({})
+    return err.value
+
+
+class TestEveryPaidCallIsReported:
+    """Each Serper query and each completion that came back reaches the callback."""
+
+    @pytest.fixture
+    def serper(self, monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+        """Patch the Serper HTTP boundary and the retry sleep."""
+        response = MagicMock()
+        response.json.return_value = FAKE_SERPER_RESPONSE
+        request = MagicMock(return_value=response)
+        monkeypatch.setattr(module.requests, "request", request)
+        monkeypatch.setattr(module.time, "sleep", MagicMock())
+        return response
+
+    @pytest.fixture
+    def parse(self, monkeypatch: pytest.MonkeyPatch, serper: MagicMock) -> MagicMock:
+        """Patch the OpenAI client boundary."""
+        client = MagicMock()
+        monkeypatch.setattr(module, "OpenAI", MagicMock(return_value=client))
+        return client.beta.chat.completions.parse
+
+    def _run(self, recorder: _CostRecorder, **extra: object) -> tuple:
+        """Call the tool entry point with the cost recorder."""
+        return run(
+            tool="superforcaster",
+            model=MODEL,
+            prompt=PREDICTION_PROMPT,
+            api_keys=_FakeKeyChain(retries=0),
+            counter_callback=recorder,
+            **extra,
+        )
+
+    def test_live_search_reports_one_query_at_the_serper_price(
+        self, parse: MagicMock
+    ) -> None:
+        """A run that searches reports the query under the request's model."""
+        parse.return_value = _mock_parse_response()
+        recorder = _CostRecorder()
+
+        result = self._run(recorder)
+
+        assert result[3] is recorder
+        assert recorder.charges() == [module.SERPER_COST_PER_QUERY_USD]
+        assert recorder.calls[0]["model"] == MODEL
+        assert recorder.completions() == [(PROMPT_TOKENS, COMPLETION_TOKENS)]
+
+    def test_replayed_sources_report_no_search_charge(self, parse: MagicMock) -> None:
+        """A run on supplied sources makes no query, so it reports none."""
+        parse.return_value = _mock_parse_response()
+        recorder = _CostRecorder()
+
+        self._run(recorder, source_content={"serper_response": FAKE_SERPER_RESPONSE})
+
+        module.requests.request.assert_not_called()
+        assert recorder.charges() == []
+        assert recorder.completions() == [(PROMPT_TOKENS, COMPLETION_TOKENS)]
+
+    def test_failed_search_raises_without_a_charge(
+        self, parse: MagicMock, serper: MagicMock
+    ) -> None:
+        """An error answer from Serper is a failed run on the mech's side."""
+        serper.raise_for_status.side_effect = requests.HTTPError(
+            "forbidden", response=MagicMock(status_code=HTTP_FORBIDDEN)
+        )
+        recorder = _CostRecorder()
+
+        with pytest.raises(requests.HTTPError) as err:
+            self._run(recorder)
+
+        assert type(err.value).__name__ != "InvalidRequestError"
+        assert recorder.calls == []
+        serper.json.assert_not_called()
+        parse.assert_not_called()
+
+    def test_refused_completion_is_reported_before_the_retry_answers(
+        self, parse: MagicMock
+    ) -> None:
+        """A refused completion and the retry that answers are both reported."""
+        parse.side_effect = [_refusal_response(), _mock_parse_response()]
+        recorder = _CostRecorder()
+
+        result = self._run(recorder)
+
+        assert json.loads(result[0])["p_yes"] == FAKE_PREDICTION.p_yes
+        assert recorder.completions() == [(PROMPT_TOKENS, COMPLETION_TOKENS)] * 2
+
+    def test_every_refused_completion_is_reported_when_the_run_fails(
+        self, parse: MagicMock
+    ) -> None:
+        """A run that ends without an answer still reports each completion."""
+        parse.side_effect = [_refusal_response()] * module.COMPLETION_RETRIES
+        recorder = _CostRecorder()
+
+        with pytest.raises(RuntimeError, match="after retries"):
+            self._run(recorder)
+
+        assert (
+            recorder.completions()
+            == [(PROMPT_TOKENS, COMPLETION_TOKENS)] * module.COMPLETION_RETRIES
+        )
+
+    def test_completion_failing_the_schema_reports_the_prompt_that_was_sent(
+        self, parse: MagicMock
+    ) -> None:
+        """Without usage from the SDK, the sent prompt is reported for counting."""
+        parse.side_effect = [_schema_validation_error(), _mock_parse_response()]
+        recorder = _CostRecorder()
+
+        self._run(recorder)
+
+        sent = parse.call_args.kwargs["messages"]
+        assert recorder.prompts() == ["\n".join(m["content"] for m in sent)]
+        assert module.SYSTEM_PROMPT in recorder.prompts()[0]
+        assert recorder.completions() == [(PROMPT_TOKENS, COMPLETION_TOKENS)]
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            _openai_error(openai.InternalServerError, 500),
+            ValueError("no completion came back"),
+        ],
+        ids=["server-error", "plain-value-error"],
+    )
+    def test_attempt_without_a_completion_reports_no_tokens(
+        self, parse: MagicMock, error: Exception
+    ) -> None:
+        """A failed attempt that produced no completion adds no token report."""
+        parse.side_effect = [error, _mock_parse_response()]
+        recorder = _CostRecorder()
+
+        self._run(recorder)
+
+        assert recorder.prompts() == []
+        assert recorder.completions() == [(PROMPT_TOKENS, COMPLETION_TOKENS)]
+
+    def test_run_without_a_callback_still_answers(self, parse: MagicMock) -> None:
+        """A run outside the mech, with no callback, answers as before."""
+        parse.return_value = _mock_parse_response()
+        result = run(
+            tool="superforcaster",
+            model=MODEL,
+            prompt=PREDICTION_PROMPT,
+            api_keys=_FakeKeyChain(retries=0),
+        )
+        assert result[3] is None
+        assert json.loads(result[0])["p_yes"] == FAKE_PREDICTION.p_yes
 
 
 MAX_TOKENS_LIMIT = module.DEFAULT_OPENAI_SETTINGS["limit_max_tokens"]

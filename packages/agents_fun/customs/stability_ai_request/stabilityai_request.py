@@ -30,6 +30,10 @@ import requests
 from googleapiclient.errors import HttpError as GoogleApiClientHttpError
 from tiktoken import encoding_for_model
 
+MIN_STEPS = 10
+MAX_STEPS = 30
+MIN_SAMPLES = 1
+MAX_SAMPLES = 10
 DEFAULT_STABILITYAI_SETTINGS = {
     "cfg_scale": 7,
     "weight": 0.5,
@@ -37,12 +41,13 @@ DEFAULT_STABILITYAI_SETTINGS = {
     "height": 512,
     "width": 512,
     "samples": 1,
-    "steps": 30,
+    "steps": MAX_STEPS,
 }
 PREFIX = "stabilityai-"
 # Credits per image for SDXL 1.0 on the v1 endpoint at the default settings,
 # and USD per credit (docs.stability.ai/pricing). Larger sizes and more steps
-# cost more; the default is what this tool reports.
+# cost more, so a request is served only within the settings this price covers:
+# a size from ENGINE_SIZE_CHART and at most MAX_STEPS, the default, steps.
 SDXL_CREDITS_PER_IMAGE = 0.9
 USD_PER_CREDIT = 0.01
 ENGINES = {
@@ -158,6 +163,48 @@ def count_tokens(text: str, model: str) -> int:
     return len(enc.encode(text))
 
 
+def _is_whole_number(value: Any, low: int, high: int) -> bool:
+    """Whether ``value`` is an int, and not a bool, from ``low`` to ``high``.
+
+    :param value: the value a request carries.
+    :param low: the lowest value allowed.
+    :param high: the highest value allowed.
+    :return: True for an int within the range.
+    """
+    return (
+        isinstance(value, int) and not isinstance(value, bool) and low <= value <= high
+    )
+
+
+def _validate_priced_settings(
+    engine: str, height: Any, width: Any, samples: Any, steps: Any
+) -> None:
+    """Check a request stays within the settings the per-image price covers.
+
+    :param engine: the Stability engine.
+    :param height: the requested image height.
+    :param width: the requested image width.
+    :param samples: the requested number of images.
+    :param steps: the requested number of diffusion steps.
+    :raises InvalidRequestError: for a size outside the engine's size chart,
+        or samples or steps that are not whole numbers within their range.
+    """
+    if {"height": height, "width": width} not in ENGINE_SIZE_CHART[engine]:
+        raise InvalidRequestError(
+            f"Size {height}x{width} (height x width) is not supported by {engine}."
+        )
+    if not _is_whole_number(samples, MIN_SAMPLES, MAX_SAMPLES):
+        raise InvalidRequestError(
+            f"samples must be a whole number from {MIN_SAMPLES} to {MAX_SAMPLES}, "
+            f"got {samples!r}."
+        )
+    if not _is_whole_number(steps, MIN_STEPS, MAX_STEPS):
+        raise InvalidRequestError(
+            f"steps must be a whole number from {MIN_STEPS} to {MAX_STEPS}, "
+            f"got {steps!r}."
+        )
+
+
 class FinishReason(Enum):
     """The finish reasons of the API."""
 
@@ -188,18 +235,12 @@ def run(  # pylint: disable=too-many-locals
         "clip_guidance_preset", DEFAULT_STABILITYAI_SETTINGS["clip_guidance_preset"]
     )
 
-    # Handle different engine types
-    if engine == "stable-diffusion-xl-1024-v1-0":
-        height = kwargs.get(
-            "height", ENGINE_SIZE_CHART[engine][0]["height"]  # type: ignore[index]
-        )  # Access first size as default
-        width = kwargs.get("width", ENGINE_SIZE_CHART[engine][0]["width"])  # type: ignore[index]
-    else:
-        height = kwargs.get("height", ENGINE_SIZE_CHART[engine]["height"])  # type: ignore[call-overload]
-        width = kwargs.get("width", ENGINE_SIZE_CHART[engine]["width"])  # type: ignore[call-overload]
-
+    # The first size of the engine's chart is the default
+    height = kwargs.get("height", ENGINE_SIZE_CHART[engine][0]["height"])
+    width = kwargs.get("width", ENGINE_SIZE_CHART[engine][0]["width"])
     samples = kwargs.get("samples", DEFAULT_STABILITYAI_SETTINGS["samples"])
     steps = kwargs.get("steps", DEFAULT_STABILITYAI_SETTINGS["steps"])
+    _validate_priced_settings(engine, height, width, samples, steps)
 
     optional_params = {}
     for optional in ("sampler", "seed", "style_preset", "extras"):
@@ -242,6 +283,6 @@ def run(  # pylint: disable=too-many-locals
     record_api_cost(
         counter_callback,
         engine,
-        SDXL_CREDITS_PER_IMAGE * USD_PER_CREDIT * int(samples),
+        SDXL_CREDITS_PER_IMAGE * USD_PER_CREDIT * samples,
     )
     return json.dumps(response.json()), None, None, counter_callback
