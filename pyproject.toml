@@ -91,7 +91,7 @@ override-dependencies = [
 # author so canonical env vars resolve sensibly.
 packages_paths = "packages/valory"
 # Third-party skills/contracts on disk are synced from mech upstream.
-upstream_pins = ["valory-xyz/mech@v0.37.0-rc1"]
+upstream_pins = ["valory-xyz/mech@v0.37.0-rc3"]
 tomte_dep_pin = "==0.7.4"
 # filelock advisories disclosed 2026-10-20 and 2026-10-23 against the
 # version safety's own tox venv installs; no shipped code uses that filelock.
