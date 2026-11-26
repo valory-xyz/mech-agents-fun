@@ -32,9 +32,7 @@ import anthropic
 import requests
 from aea_cli_ipfs.ipfs_utils import IPFSTool
 from google import genai  # type: ignore[import-not-found]
-from google.api_core import (
-    exceptions as google_exceptions,  # type: ignore[import-not-found]
-)
+from google.genai import errors as genai_errors  # type: ignore[import-not-found]
 from google.genai import types  # type: ignore[import-not-found]
 from moviepy.audio.AudioClip import AudioClip, concatenate_audioclips
 from moviepy.audio.fx.audio_fadeout import audio_fadeout
@@ -45,7 +43,7 @@ from moviepy.video.compositing.concatenate import concatenate_videoclips
 MechResponse = Tuple[str, Optional[str], Optional[Dict[str, Any]], Any, Any]
 
 SYSTEM_INSTRUCTION_CONTENT = (
-    f'Based on the USER INPUT: "{0}", please provide a short voiceover script and a choice of voice for the voiceover. Format your response as plain text with two lines: "Voiceover: [script]" and "Voice: [voice_name]". Each field should contain the respective content as described below.\n\n'
+    'Based on the USER INPUT: "{0}", please provide a short voiceover script and a choice of voice for the voiceover. Format your response as plain text with two lines: "Voiceover: [script]" and "Voice: [voice_name]". Each field should contain the respective content as described below.\n\n'
     '- For the "Voiceover": Use the user input to create a short script no longer than 10 seconds long (around 15-30 words), which has a mindblowing insight. The script should be in direct speech format suitable for text-to-speech AI without any stage directions. Do not just repeat the user input\n\n'
     "- For the \"Voice\": Choose what type of voice would suit the video from the following available Google TTS voices: 'achernar', 'achird', 'algenib', 'algieba', 'alnilam', 'aoede', 'autonoe', 'callirrhoe', 'charon', 'despina', 'enceladus', 'erinome', 'fenrir', 'gacrux', 'iapetus', 'kore', 'laomedeia', 'leda', 'orus', 'puck', 'pulcherrima', 'rasalgethi', 'sadachbia', 'sadaltager', 'schedar', 'sulafat', 'umbriel', 'vindemiatrix', 'zephyr', 'zubenelgenubi'. Only output the name, nothing else. \n\n"
     "Please structure your response in the following plain text format:\n\n"
@@ -62,6 +60,18 @@ SYSTEM_INSTRUCTION_CONTENT = (
 ALLOWED_TOOLS = [
     "google_video_gen",
 ]
+HTTP_BAD_REQUEST = 400
+HTTP_TOO_MANY_REQUESTS = 429
+GEMINI_SERVICE = "gemini_api_key"
+
+
+class InvalidRequestError(ValueError):
+    """The request cannot be served as sent: the fault is in the buyer's input.
+
+    The mech matches this class name to tell a client-side error apart from
+    a tool or provider failure. Raise it only for faults in the request.
+    """
+
 
 # Prices are USD per million tokens from ai.google.dev/gemini-api/docs/pricing.
 # The script model thinks by default and thinking is billed at the output
@@ -134,10 +144,9 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
             or not hasattr(api_keys, "rotate")
             or not hasattr(api_keys, "get")
         ):
-            error_msg = "api_keys object does not have required methods (max_retries, rotate, get)"
-            prompt_val = kwargs.get("prompt", "N/A")
-            callback_val = kwargs.get("counter_callback", None)
-            return error_msg, prompt_val, None, callback_val, None  # Return 5 elements
+            raise TypeError(
+                "api_keys object does not have required methods (max_retries, rotate, get)"
+            )
 
         retries_left: Dict[str, int] = api_keys.max_retries()
 
@@ -146,73 +155,66 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
             try:
                 result = func(*args, **kwargs)
                 return result + (api_keys,)
-            except (
-                anthropic.RateLimitError,
-                google_exceptions.ResourceExhausted,
-                google_exceptions.TooManyRequests,
-            ) as e:
-                service = "google_api_key"
-                if isinstance(e, anthropic.RateLimitError):
-                    service = "anthropic"
-                if retries_left.get(service, 0) <= 0:
-                    print(f"No retries left for service: {service}")
-                    raise e
+            except anthropic.RateLimitError as e:
+                return rotate_and_retry(e, ("anthropic",))
+            except genai_errors.APIError as e:
+                if e.code != HTTP_TOO_MANY_REQUESTS:
+                    raise
+                return rotate_and_retry(e, (GEMINI_SERVICE,))
 
-                retries_left[service] -= 1
-                print(
-                    f"Rate limit error for {service}. Retries left: {retries_left[service]}. Rotating key."
-                )
-                api_keys.rotate(service)
-                return execute()
-            except (
-                google_exceptions.GoogleAPIError
-            ) as e:  # Specific catch for other GoogleAPIErrors
-                # If not a 500 error, or no code attribute, re-raise immediately
-                if not hasattr(e, "code") or e.code != 500:  # pylint: disable=no-member
-                    raise e
-                service = "google_api_key"
-                # If no retries left for this service, raise.
-                if retries_left.get(service, 0) <= 0:
-                    raise e
+        def rotate_and_retry(
+            error: Exception, services: Tuple[str, ...]
+        ) -> MechResponse:
+            """Rotate the services with keys left and retry.
 
-                # Retries are available, proceed with retry logic.
+            With no key left for any of them, the error is raised again.
+
+            :param error: the rate-limit error.
+            :param services: the services the error is for.
+            :return: the retry's response.
+            """
+            to_rotate = [s for s in services if retries_left.get(s, 0) > 0]
+            if not to_rotate:
+                raise error
+            for service in to_rotate:
                 retries_left[service] -= 1
+                print(f"Rate limit error for {service}. Rotating key.")
                 api_keys.rotate(service)
-                return execute()
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                print(f"An unexpected error occurred: {e}")
-                error_response = str(e)
-                prompt_value = kwargs.get(
-                    "prompt", "Prompt not available in error context"
-                )
-                callback_value = kwargs.get("counter_callback", None)
-                return error_response, prompt_value, None, callback_value, api_keys
+            return execute()
 
         return execute()
 
     return wrapper
 
 
-def _validate_inputs(
-    tool: Optional[str], api_key: Optional[str], prompt: str, counter_callback: Any
-) -> Optional[Tuple[str, str, None, Any]]:
-    """Validate tool and API key."""
-    if tool not in ALLOWED_TOOLS:
-        return (
-            f"Tool {tool} is not supported by this agent.",
-            prompt,
-            None,
-            counter_callback,
-        )
+def _is_request_rejection(error: genai_errors.ClientError) -> bool:
+    """Whether Gemini rejected the request itself, not the operator's key or account.
 
+    Gemini also answers 400 for an invalid API key and for a failed
+    precondition (unsupported region, billing), which are not request faults.
+
+    :param error: the Google GenAI client error.
+    :return: True for a 400 INVALID_ARGUMENT that is not about the API key.
+    """
+    if error.code != HTTP_BAD_REQUEST or error.status != "INVALID_ARGUMENT":
+        return False
+    return "API_KEY_INVALID" not in str(error.details) and "API key" not in str(
+        error.message or ""
+    )
+
+
+def _validate_inputs(tool: Optional[str], api_key: Optional[str]) -> None:
+    """Validate tool and API key.
+
+    :param tool: the requested tool name.
+    :param api_key: the Gemini API key.
+    :raises InvalidRequestError: if the tool is not supported.
+    :raises ValueError: if the key is missing.
+    """
+    if tool not in ALLOWED_TOOLS:
+        raise InvalidRequestError(f"Tool {tool} is not supported by this agent.")
     if not api_key:
-        return (
-            "Google API key (GEMINI_API_KEY) not provided.",
-            prompt,
-            None,
-            counter_callback,
-        )
-    return None
+        raise ValueError("Google API key (GEMINI_API_KEY) not provided.")
 
 
 def download_file(url: str, local_filename: str) -> str:
@@ -275,11 +277,18 @@ def get_audio_prompts(
     )
 
     try:
-        raw_content = _generate_text_with_gemini_flash(
-            google_client,
-            prompt=full_prompt,
-            counter_callback=counter_callback,
-        )
+        try:
+            raw_content = _generate_text_with_gemini_flash(
+                google_client,
+                prompt=full_prompt,
+                counter_callback=counter_callback,
+            )
+        except genai_errors.ClientError as e:
+            if not _is_request_rejection(e):
+                raise
+            raise InvalidRequestError(
+                f"The model provider rejected the request: {e.message}"
+            ) from e
         print("Raw content from _generate_text_with_gemini_flash: \n", raw_content)
         content = raw_content.strip()
         print("Stripped content: \n", content)
@@ -476,19 +485,17 @@ def run(  # pylint: disable=too-many-locals
     """Runs the Google video generation task using genai.Client and adds audio."""
     prompt = kwargs["prompt"]
     api_keys = kwargs["api_keys"]
-    google_api_key = api_keys.get("gemini_api_key", None)
+    google_api_key = api_keys.get(GEMINI_SERVICE, None)
     tool = kwargs.get("tool")
     counter_callback = kwargs.get("counter_callback", None)
     model_name = TTS_MODEL
+
+    _validate_inputs(tool, google_api_key)
 
     # Initialize clients
     google_client = genai.Client(api_key=google_api_key)
 
     file_prefix = prompt[:20].replace(" ", "_").replace("-", "_").lower()
-
-    validation_error = _validate_inputs(tool, google_api_key, prompt, counter_callback)
-    if validation_error:
-        return validation_error
 
     temp_files = []
     try:
@@ -531,13 +538,6 @@ def run(  # pylint: disable=too-many-locals
 
         result_data = {"audio_hash": audio_hash, "prompt": prompt, "model": model_name}
         return json.dumps(result_data), prompt, None, counter_callback
-
-    except google_exceptions.GoogleAPIError as e:
-        print(f"Google API error: {e}")
-        return f"Google API error: {e}", prompt, None, counter_callback
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"An unexpected error occurred: {e}")
-        return f"An error occurred: {e}", prompt, None, counter_callback
     finally:
         for f in temp_files:
             if os.path.exists(f):

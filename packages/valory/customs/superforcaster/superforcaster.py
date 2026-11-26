@@ -20,15 +20,16 @@
 
 import functools
 import json
+import math
 import re
 import time
 from datetime import date
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import openai
 import requests
 from openai import OpenAI
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from tiktoken import encoding_for_model
 
 MechResponseWithKeys = Tuple[
@@ -37,10 +38,6 @@ MechResponseWithKeys = Tuple[
 MechResponse = Tuple[
     str, Optional[str], Optional[Dict[str, Any]], Any, Optional[Dict[str, Any]]
 ]
-MaxCostResponse = float
-
-N_MODEL_CALLS = 1
-DEFAULT_DELIVERY_RATE = 100
 
 
 # ---------------------------------------------------------------------------
@@ -146,34 +143,30 @@ def with_key_rotation(func: Callable) -> Callable:
     """
 
     @functools.wraps(func)
-    def wrapper(
-        *args: Any, **kwargs: Any
-    ) -> Union[MaxCostResponse, MechResponseWithKeys]:
+    def wrapper(*args: Any, **kwargs: Any) -> MechResponseWithKeys:
         # this is expected to be a KeyChain object,
         # although it is not explicitly typed as such
         api_keys = kwargs["api_keys"]
         retries_left: Dict[str, int] = api_keys.max_retries()
 
-        def execute() -> Union[MaxCostResponse, MechResponseWithKeys]:
+        def execute() -> MechResponseWithKeys:
             """Retry the function with a new key."""
             try:
                 result = func(*args, **kwargs)
-                # Max-cost path returns a float; pass through without appending
-                # api_keys (tuple concatenation would fail).
-                if isinstance(result, float):
-                    return result
                 return result + (api_keys,)
             except openai.RateLimitError as e:
-                # try with a new key again
-                if retries_left["openai"] <= 0 and retries_left["openrouter"] <= 0:
+                # rotate only the services the keychain has keys left for
+                services = [
+                    service
+                    for service in ("openai", "openrouter")
+                    if retries_left.get(service, 0) > 0
+                ]
+                if not services:
                     raise e
-                retries_left["openai"] -= 1
-                retries_left["openrouter"] -= 1
-                api_keys.rotate("openai")
-                api_keys.rotate("openrouter")
+                for service in services:
+                    retries_left[service] -= 1
+                    api_keys.rotate(service)
                 return execute()
-            except Exception as e:
-                return str(e), "", None, None, None, api_keys
 
         mech_response = execute()
         return mech_response
@@ -217,12 +210,24 @@ DEFAULT_OPENAI_SETTINGS = {
     "limit_max_tokens": 4096,
     "temperature": 0,
 }
+MIN_TEMPERATURE = 0.0
+MAX_TEMPERATURE = 2.0
+# room for the five reasoning fields of PredictionResult
+MIN_MAX_TOKENS = 1024
 DEFAULT_OPENAI_MODEL = "gpt-4.1-2025-04-14"
 ALLOWED_TOOLS = ["superforcaster"]
 ALLOWED_MODELS = [DEFAULT_OPENAI_MODEL]
 MAX_SOURCES = 5
 COMPLETION_RETRIES = 3
 COMPLETION_DELAY = 2
+
+
+class InvalidRequestError(ValueError):
+    """The request cannot be served as sent: the fault is in the buyer's input.
+
+    The mech matches this class name to tell a client-side error apart from
+    a tool or provider failure. Raise it only for faults in the request.
+    """
 
 
 SYSTEM_PROMPT = "You are a helpful assistant."
@@ -312,6 +317,49 @@ BEFORE FINAL ANSWER — apply all three checks:
 """
 
 
+def _record_completion_usage(
+    counter_callback: Optional[Callable[..., Any]], model: str, usage: Any
+) -> None:
+    """Report one completion's token usage to the mech cost callback.
+
+    :param counter_callback: the mech cost callback, or None outside the mech.
+    :param model: the model that was called.
+    :param usage: the completion's ``usage``, or None when it carries none.
+    """
+    if counter_callback is None or usage is None:
+        return
+    counter_callback(
+        input_tokens=usage.prompt_tokens,
+        output_tokens=usage.completion_tokens,
+        model=model,
+        token_counter=count_tokens,
+    )
+
+
+def _record_prompt_usage(
+    counter_callback: Optional[Callable[..., Any]],
+    model: str,
+    messages: List[Dict[str, str]],
+) -> None:
+    """Report the prompt of a completion whose usage the SDK did not hand back.
+
+    A completion that fails schema validation is raised by the SDK without
+    its ``usage``, so the prompt is counted from the messages that were sent.
+
+    :param counter_callback: the mech cost callback, or None outside the mech.
+    :param model: the model that was called.
+    :param messages: the chat messages that were sent.
+    """
+    if counter_callback is None:
+        return
+    counter_callback(
+        input_prompt="\n".join(message["content"] for message in messages),
+        output_tokens=0,
+        model=model,
+        token_counter=count_tokens,
+    )
+
+
 def _parse_completion(
     client: OpenAI,
     model: str,
@@ -339,8 +387,10 @@ def _parse_completion(
     :param delay: delay in seconds between retries.
     :param counter_callback: optional callback tracking token usage.
     :return: tuple of (parsed model instance, counter_callback).
+    :raises RateLimitError: if the last attempt was rate limited, so the caller can rotate keys.
     :raises RuntimeError: if all retries exhausted without a successful parse.
     """
+    last_error: Optional[Exception] = None
     attempt = 0
     while attempt < retries:
         try:
@@ -352,6 +402,9 @@ def _parse_completion(
                 max_tokens=max_tokens,
                 timeout=150,
             )
+            # Every completion that came back is reported, also one the
+            # checks below turn down.
+            _record_completion_usage(counter_callback, model, response.usage)
 
             parsed = response.choices[0].message.parsed
 
@@ -359,14 +412,6 @@ def _parse_completion(
                 refusal = response.choices[0].message.refusal
                 raise ValueError(
                     f"Model refused or returned unparseable output: {refusal}"
-                )
-
-            if counter_callback is not None:
-                counter_callback(
-                    input_tokens=response.usage.prompt_tokens,
-                    output_tokens=response.usage.completion_tokens,
-                    model=model,
-                    token_counter=count_tokens,
                 )
 
             return parsed, counter_callback
@@ -382,10 +427,40 @@ def _parse_completion(
             #   - ValueError — covers pydantic ValidationError (e.g. p_yes+p_no
             #     sum check) and the inline "Model refused…" raise above
             print(f"[superforcaster] Attempt {attempt + 1} failed: {e}")
+            if isinstance(e, ValidationError):
+                _record_prompt_usage(counter_callback, model, messages)
+            last_error = e
             time.sleep(delay)
             attempt += 1
 
-    raise RuntimeError("Failed to get structured LLM completion after retries")
+    if isinstance(last_error, openai.RateLimitError):
+        raise last_error
+    raise RuntimeError(
+        "Failed to get structured LLM completion after retries"
+    ) from last_error
+
+
+# One Serper credit per query (up to ten results), priced at the USD per credit
+# of the prepaid pack ops buys; see serper.dev pricing for the current packs.
+SERPER_COST_PER_QUERY_USD = 0.00075
+
+
+def record_api_cost(
+    counter_callback: Optional[Callable[..., Any]], model: str, cost_usd: float
+) -> None:
+    """Report a token-free charge as ``call_cost`` to the mech cost callback; never fails the answer."""
+    if counter_callback is None or cost_usd <= 0:
+        return
+    try:
+        counter_callback(
+            input_tokens=0,
+            output_tokens=0,
+            model=model,
+            token_counter=lambda text, model: 0,
+            call_cost=cost_usd,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"Could not report the {model} cost to the mech: {exc}")
 
 
 def fetch_additional_sources(question: Any, serper_api_key: Any) -> requests.Response:
@@ -447,32 +522,53 @@ def extract_question(prompt: str) -> str:
     return question
 
 
+def _clamp_sampling(temperature: Any, max_tokens: Any) -> Tuple[float, int]:
+    """Clamp the sampling settings a request may carry into the supported range.
+
+    :param temperature: the requested sampling temperature.
+    :param max_tokens: the requested completion token limit.
+    :return: the temperature within 0 to 2 and max_tokens within 1024 to 4096.
+    :raises InvalidRequestError: when temperature is not a finite number or
+        max_tokens is not a positive whole number.
+    """
+    if (
+        isinstance(temperature, bool)
+        or not isinstance(temperature, (int, float))
+        or not math.isfinite(temperature)
+    ):
+        raise InvalidRequestError(f"temperature must be a number, got {temperature!r}.")
+    if (
+        isinstance(max_tokens, bool)
+        or not isinstance(max_tokens, (int, float))
+        or not math.isfinite(max_tokens)
+        or not float(max_tokens).is_integer()
+        or max_tokens <= 0
+    ):
+        raise InvalidRequestError(
+            f"max_tokens must be a positive whole number, got {max_tokens!r}."
+        )
+    limit = DEFAULT_OPENAI_SETTINGS["limit_max_tokens"]
+    clamped_temperature = min(max(float(temperature), MIN_TEMPERATURE), MAX_TEMPERATURE)
+    clamped_max_tokens = min(max(int(max_tokens), MIN_MAX_TOKENS), limit)
+    return clamped_temperature, clamped_max_tokens
+
+
 @with_key_rotation
-def run(**kwargs: Any) -> Union[MaxCostResponse, MechResponse]:
+def run(**kwargs: Any) -> MechResponse:
     """Run the task"""
     tool = kwargs["tool"]
     if tool not in ALLOWED_TOOLS:
-        raise ValueError(f"Tool {tool} is not supported.")
+        raise InvalidRequestError(f"Tool {tool} is not supported.")
 
     model = kwargs.get("model")
     if model is None:
         raise ValueError("Model not supplied.")
+    if model not in ALLOWED_MODELS:
+        raise InvalidRequestError(f"Model {model} not supported.")
 
-    delivery_rate = int(kwargs.get("delivery_rate", DEFAULT_DELIVERY_RATE))
     counter_callback: Optional[Callable[..., Any]] = kwargs.get(
         "counter_callback", None
     )
-    if delivery_rate == 0:
-        if not counter_callback:
-            raise ValueError(
-                "A delivery rate of `0` was passed, but no counter callback was given to calculate the max cost with."
-            )
-
-        max_cost = counter_callback(
-            max_cost=True,
-            models_calls=(model,) * N_MODEL_CALLS,
-        )
-        return max_cost
 
     openai_api_key = kwargs["api_keys"]["openai"]
     source_content = kwargs.get("source_content", None)
@@ -484,9 +580,10 @@ def run(**kwargs: Any) -> Union[MaxCostResponse, MechResponse]:
         raise ValueError(
             f"Invalid source_content_mode: {source_content_mode!r}. Must be 'cleaned' or 'raw'."
         )
+    max_tokens = kwargs.get("max_tokens", DEFAULT_OPENAI_SETTINGS["max_tokens"])
+    temperature = kwargs.get("temperature", DEFAULT_OPENAI_SETTINGS["temperature"])
+    temperature, max_tokens = _clamp_sampling(temperature, max_tokens)
     with OpenAIClientManager(openai_api_key) as llm_client:
-        max_tokens = kwargs.get("max_tokens", DEFAULT_OPENAI_SETTINGS["max_tokens"])
-        temperature = kwargs.get("temperature", DEFAULT_OPENAI_SETTINGS["temperature"])
         prompt = kwargs["prompt"]
 
         today = date.today()
@@ -505,6 +602,8 @@ def run(**kwargs: Any) -> Union[MaxCostResponse, MechResponse]:
             serper_api_key = kwargs["api_keys"]["serperapi"]
             print("Fetching additional sources...")
             serper_response = fetch_additional_sources(question, serper_api_key)
+            serper_response.raise_for_status()
+            record_api_cost(counter_callback, model, SERPER_COST_PER_QUERY_USD)
             sources_data = serper_response.json()
             # mode tag included for consistency across tools; content is identical
             # regardless of mode since Serper returns structured JSON, not HTML

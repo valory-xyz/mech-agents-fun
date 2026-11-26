@@ -24,6 +24,8 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Tuple
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 import packages.agents_fun.customs.recraft_image_gen.recraft_image_gen as module
 from packages.agents_fun.customs.recraft_image_gen.recraft_image_gen import (
     RECRAFT_COST_PER_IMAGE_USD,
@@ -66,9 +68,7 @@ def _run(recorder: _CostRecorder, url: Any) -> Tuple[Any, ...]:
     with (
         patch.object(module, "OpenAI", return_value=client),
         patch.object(module, "_download_image", return_value=b"png"),
-        patch.object(
-            module, "_process_image_and_upload", return_value=(IMAGE_HASH, None)
-        ),
+        patch.object(module, "_process_image_and_upload", return_value=IMAGE_HASH),
     ):
         result = run(
             prompt="a fox",
@@ -93,12 +93,11 @@ def test_the_model_is_pinned_and_one_image_is_charged() -> None:
     assert recorder.charges() == [(RECRAFT_MODEL, RECRAFT_COST_PER_IMAGE_USD)]
 
 
-def test_no_image_url_means_no_charge() -> None:
-    """A response without an image costs the requester nothing."""
+def test_no_image_url_raises_without_a_charge() -> None:
+    """A response without an image is a provider fault and costs the requester nothing."""
     recorder = _CostRecorder()
 
-    (result, _, _, callback, _), _ = _run(recorder, None)
+    with pytest.raises(ValueError, match="No image URL"):
+        _run(recorder, None)
 
-    assert "No image" in result or "image" in result.lower()
-    assert callback is recorder
     assert recorder.charges() == []

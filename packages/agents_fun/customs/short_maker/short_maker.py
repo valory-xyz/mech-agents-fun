@@ -49,6 +49,17 @@ ALLOWED_TOOLS = [
     "short_maker",
 ]
 
+
+class InvalidRequestError(ValueError):
+    """The request cannot be served as sent: the fault is in the buyer's input.
+
+    The mech matches this class name to tell a client-side error apart from
+    a tool or provider failure. Raise it only for faults in the request.
+    """
+
+
+AUDIO_PROMPT_KEYS = ("voiceover_script", "soundtrack_prompt", "voice")
+
 REPLICATE_MUSIC_GEN = (
     "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
 )
@@ -142,13 +153,17 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 api_keys.rotate(service)
                 return execute()
             except openai.RateLimitError as e:
-                # try with a new key again
-                if retries_left["openai"] <= 0 and retries_left["openrouter"] <= 0:
+                # rotate only the services the keychain has keys left for
+                services = [
+                    service
+                    for service in ("openai", "openrouter")
+                    if retries_left.get(service, 0) > 0
+                ]
+                if not services:
                     raise e
-                retries_left["openai"] -= 1
-                retries_left["openrouter"] -= 1
-                api_keys.rotate("openai")
-                api_keys.rotate("openrouter")
+                for service in services:
+                    retries_left[service] -= 1
+                    api_keys.rotate(service)
                 return execute()
             except GoogleApiClientHttpError as e:
                 # try with a new key again
@@ -161,8 +176,6 @@ def with_key_rotation(func: Callable) -> Callable[..., MechResponse]:
                 retries_left[service] -= 1
                 api_keys.rotate(service)
                 return execute()
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                return str(e), "", None, kwargs.get("counter_callback"), api_keys
 
         mech_response = execute()
         return mech_response
@@ -232,7 +245,7 @@ def get_shot_prompts(
     voiceover_length: float,
     engine: str = TEXT_MODEL,
     counter_callback: Any = None,
-) -> Optional[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """Send a prompt to OpenAI API and return video shot prompts as JSON."""
 
     # Calculate the number of shots needed
@@ -255,26 +268,22 @@ def get_shot_prompts(
     # Close the JSON structure
     message["content"] = message["content"].strip(",\n") + "\n}"
 
-    try:
-        # Send the message to the chat completions endpoint
-        assert client is not None, "OpenAI client not initialized"
-        response = client.chat.completions.create(
-            model=engine, messages=[message]  # type: ignore[list-item]
-        )
-        record_chat_usage(counter_callback, engine, response)
+    # Send the message to the chat completions endpoint
+    assert client is not None, "OpenAI client not initialized"
+    response = client.chat.completions.create(
+        model=engine, messages=[message]  # type: ignore[list-item]
+    )
+    record_chat_usage(counter_callback, engine, response)
 
-        # Parse the JSON content from the response
-        content = response.choices[0].message.content
-        assert content is not None, "Response content is None"
+    # Parse the JSON content from the response
+    content = response.choices[0].message.content
+    assert content is not None, "Response content is None"
 
-        # Load the content as a JSON object to ensure proper JSON formatting
-        json_object = json.loads(content)
+    # Load the content as a JSON object to ensure proper JSON formatting
+    json_object = json.loads(content)
 
-        print(f"Shot Prompts: {json_object}")
-        return json_object
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"An error occurred: {e}")
-        return None
+    print(f"Shot Prompts: {json_object}")
+    return json_object
 
 
 def process_voiceover(
@@ -355,11 +364,16 @@ def generate_images(
 ) -> Dict[str, str]:
     """Generate one image per shot prompt and save each as a PNG under ``save_dir``.
 
+    A shot the image model rejects, or whose image data is unusable, is left
+    out. Every other API error, rate limits and auth included, propagates so
+    the key rotation wrapper around ``run`` can act on it.
+
     :param shot_prompts: shot name to prompt.
     :param save_dir: directory the PNG files are written to.
     :param engine: the OpenAI image model.
     :param counter_callback: the mech cost callback, or None outside the mech.
     :return: shot name to image path for the shots that were generated.
+    :raises ValueError: when no shot produced an image.
     """
     generated_images: Dict[str, str] = {}
     assert client is not None, "OpenAI client not initialized"
@@ -386,15 +400,25 @@ def generate_images(
                 )
             encoded = response.data[0].b64_json if response.data else None
             if not encoded:
-                print(f"No image data in response for {shot_number}")
+                print(f"Skipping {shot_number}, no image data in the response")
                 continue
             image_path = os.path.join(save_dir, f"{shot_number}.png")
             with open(image_path, "wb") as handle:
                 handle.write(base64.b64decode(encoded))
-            generated_images[shot_number] = image_path
-            print(f"Generated image for {shot_number}: {image_path}")
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            print(f"Error generating image for {shot_number}: {e}")
+        except (
+            openai.BadRequestError,
+            OSError,
+            ValueError,
+            LookupError,
+            TypeError,
+        ) as e:
+            print(f"Skipping {shot_number}, no image generated: {e}")
+            continue
+        generated_images[shot_number] = image_path
+        print(f"Generated image for {shot_number}: {image_path}")
+
+    if not generated_images:
+        raise ValueError("No shot image could be generated.")
     return generated_images
 
 
@@ -540,12 +564,7 @@ def run(  # pylint: disable=too-many-locals
     counter_callback = kwargs.get("counter_callback", None)
     tool = kwargs.get("tool")
     if tool not in ALLOWED_TOOLS:
-        return (
-            f"Tool {tool} is not supported by this agent.",
-            user_input,
-            None,
-            counter_callback,
-        )
+        raise InvalidRequestError(f"Tool {tool} is not supported by this agent.")
 
     # Initialize OpenAI client with the provided key
     global client  # pylint: disable=global-statement
@@ -558,6 +577,13 @@ def run(  # pylint: disable=too-many-locals
     # Step 2: Get audio prompts
     print(f"Getting audio prompts for input: {user_input}")
     audio_prompts = get_audio_prompts(user_input, counter_callback=counter_callback)
+    missing = [
+        key
+        for key in AUDIO_PROMPT_KEYS
+        if not isinstance(audio_prompts.get(key), str) or not audio_prompts[key]
+    ]
+    if missing:
+        raise ValueError(f"Audio prompts are missing {', '.join(missing)}.")
 
     # Step 3: Process voiceover
     print("Processing voiceover...")
@@ -578,14 +604,12 @@ def run(  # pylint: disable=too-many-locals
     shot_prompts = get_shot_prompts(
         user_input, voiceover_length, counter_callback=counter_callback
     )
-    assert shot_prompts is not None, "Failed to get shot prompts"
 
     # Step 6: Generate one image per shot
     print("Generating shot images...")
     image_paths = generate_images(
         shot_prompts, tmpdir, counter_callback=counter_callback
     )
-    assert image_paths, "No shot image was generated"
     first_shot_path = list(image_paths.values())[0]
 
     # Steps 7 & 8: Process video shots
@@ -602,6 +626,8 @@ def run(  # pylint: disable=too-many-locals
         )
         if url is not None
     ]
+    if not video_urls:
+        raise ValueError("No video shot could be generated.")
 
     # Step 9: Process soundtrack
     soundtrack_prompt = audio_prompts["soundtrack_prompt"]

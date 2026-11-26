@@ -7,7 +7,7 @@ license: Apache-2.0
 fingerprint:
   README.md: bafybeif7ia4jdlazy6745ke2k2x5yoqlwsgwr6sbztbgqtwvs3ndm2p7ba
 fingerprint_ignore_patterns: []
-agent: valory/mech_agents_fun:0.1.0:bafybeia2lqbbijywdzsz3cv5r2bank2vr2s5czsvompsrdgqrtsa6akatm
+agent: valory/mech_agents_fun:0.1.0:bafybeihdydtwi5vbuohzizoftc647slq6f3ig4wwq3xsrj63okosg6okbq
 number_of_agents: 1
 deployment:
   agent:
@@ -77,6 +77,15 @@ type: skill
         predict_api_events_timeout_seconds: ${PREDICT_API_EVENTS_TIMEOUT_SECONDS:float:5.0}
         mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
         mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
+        cap_and_actual_enabled: ${CAP_AND_ACTUAL_ENABLED:bool:false}
+        explicit_deadline_settlement_margin_seconds: ${EXPLICIT_DEADLINE_SETTLEMENT_MARGIN_SECONDS:int:180}
+        settlement_base_gas: ${SETTLEMENT_BASE_GAS:int:300000}
+        settlement_gas_per_request: ${SETTLEMENT_GAS_PER_REQUEST:int:150000}
+        settlement_gas_per_requester_group: ${SETTLEMENT_GAS_PER_REQUESTER_GROUP:int:110000}
+        settlement_process_payment_gas: ${SETTLEMENT_PROCESS_PAYMENT_GAS:int:120000}
+        settlement_profit_transfer_gas: ${SETTLEMENT_PROFIT_TRANSFER_GAS:int:70000}
+        settlement_metadata_hash_gas: ${SETTLEMENT_METADATA_HASH_GAS:int:40000}
+        settlement_legacy_response_gas: ${SETTLEMENT_LEGACY_RESPONSE_GAS:int:150000}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 1:
   models:
@@ -123,6 +132,15 @@ type: skill
         predict_api_events_timeout_seconds: ${PREDICT_API_EVENTS_TIMEOUT_SECONDS:float:5.0}
         mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
         mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
+        cap_and_actual_enabled: ${CAP_AND_ACTUAL_ENABLED:bool:false}
+        explicit_deadline_settlement_margin_seconds: ${EXPLICIT_DEADLINE_SETTLEMENT_MARGIN_SECONDS:int:180}
+        settlement_base_gas: ${SETTLEMENT_BASE_GAS:int:300000}
+        settlement_gas_per_request: ${SETTLEMENT_GAS_PER_REQUEST:int:150000}
+        settlement_gas_per_requester_group: ${SETTLEMENT_GAS_PER_REQUESTER_GROUP:int:110000}
+        settlement_process_payment_gas: ${SETTLEMENT_PROCESS_PAYMENT_GAS:int:120000}
+        settlement_profit_transfer_gas: ${SETTLEMENT_PROFIT_TRANSFER_GAS:int:70000}
+        settlement_metadata_hash_gas: ${SETTLEMENT_METADATA_HASH_GAS:int:40000}
+        settlement_legacy_response_gas: ${SETTLEMENT_LEGACY_RESPONSE_GAS:int:150000}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 2:
   models:
@@ -169,6 +187,15 @@ type: skill
         predict_api_events_timeout_seconds: ${PREDICT_API_EVENTS_TIMEOUT_SECONDS:float:5.0}
         mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
         mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
+        cap_and_actual_enabled: ${CAP_AND_ACTUAL_ENABLED:bool:false}
+        explicit_deadline_settlement_margin_seconds: ${EXPLICIT_DEADLINE_SETTLEMENT_MARGIN_SECONDS:int:180}
+        settlement_base_gas: ${SETTLEMENT_BASE_GAS:int:300000}
+        settlement_gas_per_request: ${SETTLEMENT_GAS_PER_REQUEST:int:150000}
+        settlement_gas_per_requester_group: ${SETTLEMENT_GAS_PER_REQUESTER_GROUP:int:110000}
+        settlement_process_payment_gas: ${SETTLEMENT_PROCESS_PAYMENT_GAS:int:120000}
+        settlement_profit_transfer_gas: ${SETTLEMENT_PROFIT_TRANSFER_GAS:int:70000}
+        settlement_metadata_hash_gas: ${SETTLEMENT_METADATA_HASH_GAS:int:40000}
+        settlement_legacy_response_gas: ${SETTLEMENT_LEGACY_RESPONSE_GAS:int:150000}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 3:
   models:
@@ -215,6 +242,15 @@ type: skill
         predict_api_events_timeout_seconds: ${PREDICT_API_EVENTS_TIMEOUT_SECONDS:float:5.0}
         mech_events_sweep_pending_enabled: ${MECH_EVENTS_SWEEP_PENDING_ENABLED:bool:false}
         mech_events_sweep_max_age_seconds: ${MECH_EVENTS_SWEEP_MAX_AGE_SECONDS:float:3600.0}
+        cap_and_actual_enabled: ${CAP_AND_ACTUAL_ENABLED:bool:false}
+        explicit_deadline_settlement_margin_seconds: ${EXPLICIT_DEADLINE_SETTLEMENT_MARGIN_SECONDS:int:180}
+        settlement_base_gas: ${SETTLEMENT_BASE_GAS:int:300000}
+        settlement_gas_per_request: ${SETTLEMENT_GAS_PER_REQUEST:int:150000}
+        settlement_gas_per_requester_group: ${SETTLEMENT_GAS_PER_REQUESTER_GROUP:int:110000}
+        settlement_process_payment_gas: ${SETTLEMENT_PROCESS_PAYMENT_GAS:int:120000}
+        settlement_profit_transfer_gas: ${SETTLEMENT_PROFIT_TRANSFER_GAS:int:70000}
+        settlement_metadata_hash_gas: ${SETTLEMENT_METADATA_HASH_GAS:int:40000}
+        settlement_legacy_response_gas: ${SETTLEMENT_LEGACY_RESPONSE_GAS:int:150000}
         mech_events_chain_id: ${MECH_EVENTS_CHAIN_ID:int:0}
 ---
 public_id: valory/task_execution:0.1.0
@@ -236,6 +272,14 @@ type: skill
         from_block_range: ${FROM_BLOCK_RANGE:int:1000}
         mech_to_config: ${MECH_TO_CONFIG:dict:{}}
         tools_to_pricing: ${TOOLS_TO_PRICING:dict:{}}
+        tools_to_minimum_cap: ${TOOLS_TO_MINIMUM_CAP:dict:{}}
+        fixed_cost_per_request: ${FIXED_COST_PER_REQUEST:int:0}
+        marketplace_fee_bp: ${MARKETPLACE_FEE_BP:int:1500}
+        payment_token_decimals: ${PAYMENT_TOKEN_DECIMALS:int:18}
+        explicit_nonce_min_deadline_seconds: ${EXPLICIT_NONCE_MIN_DEADLINE_SECONDS:int:600}
+        max_prompt_bytes: ${MAX_PROMPT_BYTES:int:100000}
+        optimism_ledger_rpc: ${OPTIMISM_LEDGER_RPC_0:str:http://host.docker.internal:8545}
+        robinhood_ledger_rpc: ${ROBINHOOD_LEDGER_RPC_0:str:http://host.docker.internal:8545}
         max_block_window: ${MAX_BLOCK_WINDOW:int:500}
         mech_to_max_delivery_rate: ${MECH_TO_MAX_DELIVERY_RATE:dict:{}}
         gnosis_ledger_rpc: ${GNOSIS_LEDGER_RPC_0:str:http://host.docker.internal:8545}
@@ -261,6 +305,14 @@ type: skill
         from_block_range: ${FROM_BLOCK_RANGE:int:1000}
         mech_to_config: ${MECH_TO_CONFIG:dict:{}}
         tools_to_pricing: ${TOOLS_TO_PRICING:dict:{}}
+        tools_to_minimum_cap: ${TOOLS_TO_MINIMUM_CAP:dict:{}}
+        fixed_cost_per_request: ${FIXED_COST_PER_REQUEST:int:0}
+        marketplace_fee_bp: ${MARKETPLACE_FEE_BP:int:1500}
+        payment_token_decimals: ${PAYMENT_TOKEN_DECIMALS:int:18}
+        explicit_nonce_min_deadline_seconds: ${EXPLICIT_NONCE_MIN_DEADLINE_SECONDS:int:600}
+        max_prompt_bytes: ${MAX_PROMPT_BYTES:int:100000}
+        optimism_ledger_rpc: ${OPTIMISM_LEDGER_RPC_1:str:http://host.docker.internal:8545}
+        robinhood_ledger_rpc: ${ROBINHOOD_LEDGER_RPC_1:str:http://host.docker.internal:8545}
         timeout_limit: ${TIMEOUT_LIMIT:int:3}
         max_block_window: ${MAX_BLOCK_WINDOW:int:500}
         mech_to_max_delivery_rate: ${MECH_TO_MAX_DELIVERY_RATE:dict:{}}
@@ -287,6 +339,14 @@ type: skill
         from_block_range: ${FROM_BLOCK_RANGE:int:1000}
         mech_to_config: ${MECH_TO_CONFIG:dict:{}}
         tools_to_pricing: ${TOOLS_TO_PRICING:dict:{}}
+        tools_to_minimum_cap: ${TOOLS_TO_MINIMUM_CAP:dict:{}}
+        fixed_cost_per_request: ${FIXED_COST_PER_REQUEST:int:0}
+        marketplace_fee_bp: ${MARKETPLACE_FEE_BP:int:1500}
+        payment_token_decimals: ${PAYMENT_TOKEN_DECIMALS:int:18}
+        explicit_nonce_min_deadline_seconds: ${EXPLICIT_NONCE_MIN_DEADLINE_SECONDS:int:600}
+        max_prompt_bytes: ${MAX_PROMPT_BYTES:int:100000}
+        optimism_ledger_rpc: ${OPTIMISM_LEDGER_RPC_2:str:http://host.docker.internal:8545}
+        robinhood_ledger_rpc: ${ROBINHOOD_LEDGER_RPC_2:str:http://host.docker.internal:8545}
         timeout_limit: ${TIMEOUT_LIMIT:int:3}
         max_block_window: ${MAX_BLOCK_WINDOW:int:500}
         mech_to_max_delivery_rate: ${MECH_TO_MAX_DELIVERY_RATE:dict:{}}
@@ -314,6 +374,14 @@ type: skill
         timeout_limit: ${TIMEOUT_LIMIT:int:3}
         mech_to_config: ${MECH_TO_CONFIG:dict:{}}
         tools_to_pricing: ${TOOLS_TO_PRICING:dict:{}}
+        tools_to_minimum_cap: ${TOOLS_TO_MINIMUM_CAP:dict:{}}
+        fixed_cost_per_request: ${FIXED_COST_PER_REQUEST:int:0}
+        marketplace_fee_bp: ${MARKETPLACE_FEE_BP:int:1500}
+        payment_token_decimals: ${PAYMENT_TOKEN_DECIMALS:int:18}
+        explicit_nonce_min_deadline_seconds: ${EXPLICIT_NONCE_MIN_DEADLINE_SECONDS:int:600}
+        max_prompt_bytes: ${MAX_PROMPT_BYTES:int:100000}
+        optimism_ledger_rpc: ${OPTIMISM_LEDGER_RPC_3:str:http://host.docker.internal:8545}
+        robinhood_ledger_rpc: ${ROBINHOOD_LEDGER_RPC_3:str:http://host.docker.internal:8545}
         max_block_window: ${MAX_BLOCK_WINDOW:int:500}
         mech_to_max_delivery_rate: ${MECH_TO_MAX_DELIVERY_RATE:dict:{}}
         gnosis_ledger_rpc: ${GNOSIS_LEDGER_RPC_3:str:http://host.docker.internal:8545}

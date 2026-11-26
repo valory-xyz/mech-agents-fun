@@ -145,16 +145,13 @@ def test_run_calls_the_current_models_and_reports_both_charges() -> None:
     )
 
 
-def test_a_failed_voice_call_leaves_only_the_script_charge() -> None:
-    """A charge is reported only for calls that returned."""
+def test_a_failed_voice_call_raises_after_the_script_charge() -> None:
+    """A charge is reported only for calls that returned, and the failure propagates."""
     recorder = _CostRecorder()
 
-    (result, _, _, callback, _), _ = _run(
-        recorder, [_script_response(), RuntimeError("tts down")]
-    )
+    with pytest.raises(RuntimeError, match="tts down"):
+        _run(recorder, [_script_response(), RuntimeError("tts down")])
 
-    assert "error" in result.lower()
-    assert callback is recorder
     assert [model for model, _ in recorder.charges()] == [SCRIPT_MODEL]
 
 

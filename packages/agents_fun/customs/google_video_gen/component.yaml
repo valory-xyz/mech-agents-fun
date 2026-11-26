@@ -7,9 +7,9 @@ license: Apache-2.0
 aea_version: '>=2.0.0, <3.0.0'
 fingerprint:
   __init__.py: bafybeictw2zgfcx7pjerfoabm34wyffc62auemxbmzdwwwfiekt2oshldu
-  google_video_gen.py: bafybeich7pbewtjrqawtqqqzhuyfwxojj7oualopatejh6g37ceynxqyiy
+  google_video_gen.py: bafybeibv3aovesuqz62bfviibbl7u5pz6k2h3bmzosxo2wj4poiurunl6u
   tests/__init__.py: bafybeiga3iphp3xzlguxn55iozhvjlzkgsbn6mrlsrzjwm5j7hzyggsdrm
-  tests/test_google_video_gen.py: bafybeigp5pxwpyd4jifngf7xvbp3nczkuzsht7fm5gq67crd2ojfycksjm
+  tests/test_google_video_gen.py: bafybeicw2fr5w2r6ikah4v4kiesrfass4smloqi7p3r7ngvjegxs2vijs4
 fingerprint_ignore_patterns: []
 entry_point: google_video_gen.py
 callable: run
